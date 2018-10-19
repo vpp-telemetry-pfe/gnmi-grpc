@@ -1,0 +1,5 @@
+This repo aims at upgrading the vpp_prometheus_export daemon, whose original implementation can be found here:
+https://github.com/FDio/vpp/blob/3620e61dece82781f0073a2908dfcb24724712a9/src/vpp/app/vpp_prometheus_export.c
+
+We have to replace HTTP polling by GRPC, and to provide an API to select the metrics to be polled, 
+instead of imperatively polling all metrics everytime.
