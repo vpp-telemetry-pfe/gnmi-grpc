@@ -1,23 +1,23 @@
-CC=g++
-CFLAGS=-Wall -Werror -O3
-LDFLAGS=
+CXX = g++
+CXXFLAGS += `pkg-config --cflags protobuf grpc` -std=c++11
+LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++`\
+           -Wl,--no-as-needed -lgrpc++_reflection -Wl,--as-needed\
+           -ldl
+PROTOC = protoc
+GRPC_CPP_PLUGIN = grpc_cpp_plugin
+GRPC_CPP_PLUGIN_PATH ?= `which $(GRPC_CPP_PLUGIN)`
+PROTOS_PATH = proto
 SRC=src
-INC=include
-BUILD=build
-TEST=test
-MKDIR_P = mkdir -p
-SERV_EXEC=helloworld
-TEST_EXEC=test
 
-all: server test
+vpath %.proto $(PROTOS_PATH)
 
-server: $(SRC)/main.cpp
-	$(MKDIR_P) $(BUILD)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $(BUILD)/$(SERV_EXEC) $^
+all: gnmi_server
 
-test: $(TEST)/test.cpp
-	$(MKDIR_P) $(TEST)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $(BUILD)/$(TEST_EXEC) $^
+gnmi_server: $(PROTOS_PATH)/gnmi.pb.o $(PROTOS_PATH)/gnmi.grpc.pb.o gnmi_server.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+gnmi_server.o: $(SRC)/main.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -rf $(BUILD)
+	rm -f *.o gnmi_server
