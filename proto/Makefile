@@ -7,7 +7,7 @@ PROTOC = protoc
 GRPC_CPP_PLUGIN = grpc_cpp_plugin
 GRPC_CPP_PLUGIN_PATH ?= `which $(GRPC_CPP_PLUGIN)`
 
-all: gnmi_ext.pb.cc gnmi.pb.o gnmi.grpc.pb.o
+all: gnmi_ext.pb.o gnmi.pb.o gnmi.grpc.pb.o
 
 %.grpc.pb.cc: %.proto
 	$(PROTOC) --grpc_out=. --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN_PATH) $<
