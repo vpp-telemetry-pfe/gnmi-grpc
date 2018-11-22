@@ -22,6 +22,7 @@
 
 #include "gnmi.pb.h"
 
+#include <functional>
 #include <grpcpp/impl/codegen/async_generic_service.h>
 #include <grpcpp/impl/codegen/async_stream.h>
 #include <grpcpp/impl/codegen/async_unary_call.h>
@@ -100,6 +101,34 @@ class gNMI final {
     std::unique_ptr< ::grpc::ClientAsyncReaderWriterInterface< ::gnmi::SubscribeRequest, ::gnmi::SubscribeResponse>> PrepareAsyncSubscribe(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncReaderWriterInterface< ::gnmi::SubscribeRequest, ::gnmi::SubscribeResponse>>(PrepareAsyncSubscribeRaw(context, cq));
     }
+    class experimental_async_interface {
+     public:
+      virtual ~experimental_async_interface() {}
+      // Capabilities allows the client to retrieve the set of capabilities that
+      // is supported by the target. This allows the target to validate the
+      // service version that is implemented and retrieve the set of models that
+      // the target supports. The models can then be specified in subsequent RPCs
+      // to restrict the set of data that is utilized.
+      // Reference: gNMI Specification Section 3.2
+      virtual void Capabilities(::grpc::ClientContext* context, const ::gnmi::CapabilityRequest* request, ::gnmi::CapabilityResponse* response, std::function<void(::grpc::Status)>) = 0;
+      // Retrieve a snapshot of data from the target. A Get RPC requests that the
+      // target snapshots a subset of the data tree as specified by the paths
+      // included in the message and serializes this to be returned to the
+      // client using the specified encoding.
+      // Reference: gNMI Specification Section 3.3
+      virtual void Get(::grpc::ClientContext* context, const ::gnmi::GetRequest* request, ::gnmi::GetResponse* response, std::function<void(::grpc::Status)>) = 0;
+      // Set allows the client to modify the state of data on the target. The
+      // paths to modified along with the new values that the client wishes
+      // to set the value to.
+      // Reference: gNMI Specification Section 3.4
+      virtual void Set(::grpc::ClientContext* context, const ::gnmi::SetRequest* request, ::gnmi::SetResponse* response, std::function<void(::grpc::Status)>) = 0;
+      // Subscribe allows a client to request the target to send it values
+      // of particular paths within the data tree. These values may be streamed
+      // at a particular cadence (STREAM), sent one off on a long-lived channel
+      // (POLL), or sent as a one-off retrieval (ONCE).
+      // Reference: gNMI Specification Section 3.5
+    };
+    virtual class experimental_async_interface* experimental_async() { return nullptr; }
   private:
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::gnmi::CapabilityResponse>* AsyncCapabilitiesRaw(::grpc::ClientContext* context, const ::gnmi::CapabilityRequest& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::gnmi::CapabilityResponse>* PrepareAsyncCapabilitiesRaw(::grpc::ClientContext* context, const ::gnmi::CapabilityRequest& request, ::grpc::CompletionQueue* cq) = 0;
@@ -144,9 +173,23 @@ class gNMI final {
     std::unique_ptr<  ::grpc::ClientAsyncReaderWriter< ::gnmi::SubscribeRequest, ::gnmi::SubscribeResponse>> PrepareAsyncSubscribe(::grpc::ClientContext* context, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncReaderWriter< ::gnmi::SubscribeRequest, ::gnmi::SubscribeResponse>>(PrepareAsyncSubscribeRaw(context, cq));
     }
+    class experimental_async final :
+      public StubInterface::experimental_async_interface {
+     public:
+      void Capabilities(::grpc::ClientContext* context, const ::gnmi::CapabilityRequest* request, ::gnmi::CapabilityResponse* response, std::function<void(::grpc::Status)>) override;
+      void Get(::grpc::ClientContext* context, const ::gnmi::GetRequest* request, ::gnmi::GetResponse* response, std::function<void(::grpc::Status)>) override;
+      void Set(::grpc::ClientContext* context, const ::gnmi::SetRequest* request, ::gnmi::SetResponse* response, std::function<void(::grpc::Status)>) override;
+     private:
+      friend class Stub;
+      explicit experimental_async(Stub* stub): stub_(stub) { }
+      Stub* stub() { return stub_; }
+      Stub* stub_;
+    };
+    class experimental_async_interface* experimental_async() override { return &async_stub_; }
 
    private:
     std::shared_ptr< ::grpc::ChannelInterface> channel_;
+    class experimental_async async_stub_{this};
     ::grpc::ClientAsyncResponseReader< ::gnmi::CapabilityResponse>* AsyncCapabilitiesRaw(::grpc::ClientContext* context, const ::gnmi::CapabilityRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::gnmi::CapabilityResponse>* PrepareAsyncCapabilitiesRaw(::grpc::ClientContext* context, const ::gnmi::CapabilityRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::gnmi::GetResponse>* AsyncGetRaw(::grpc::ClientContext* context, const ::gnmi::GetRequest& request, ::grpc::CompletionQueue* cq) override;
