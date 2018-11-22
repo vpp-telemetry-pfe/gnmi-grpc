@@ -13,11 +13,11 @@ vpath %.proto $(PROTOS_PATH)
 
 all: gnmi_server
 
-gnmi_server: $(PROTOS_PATH)/gnmi.pb.o $(PROTOS_PATH)/gnmi.grpc.pb.o $(PROTOS_PATH)/gnmi_ext.pb.o gnmi_server.o
+gnmi_server: $(PROTOS_PATH)/gnmi.pb.o $(PROTOS_PATH)/gnmi.grpc.pb.o $(PROTOS_PATH)/gnmi_ext.pb.o $(SRC)/gnmi_server.o
 	$(CXX) $^ $(LDFLAGS) -o $@
 
 gnmi_server.o: $(SRC)/gnmi_server.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -c $< -o $(SRC)/$@
 
 clean:
 	rm -f *.o gnmi_server

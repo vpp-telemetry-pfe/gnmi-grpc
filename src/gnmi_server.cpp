@@ -2,23 +2,26 @@
 
 #include <grpc/grpc.h>
 #include <grpcpp/server.h>
+#include <grpcpp/server_builder.h>
 #include "../proto/gnmi.grpc.pb.h"
 
 using grpc::Status;
+using grpc::Server;
+using grpc::ServerBuilder;
 using grpc::ServerContext;
 using grpc::ServerReaderWriter;
 using gnmi::gNMI;
 using gnmi::GetRequest;
-using gnmi::GetResponse;
 using gnmi::SetRequest;
+using gnmi::GetResponse;
 using gnmi::SetResponse;
 using gnmi::SubscribeRequest;
 using gnmi::SubscribeResponse;
 using gnmi::CapabilityRequest;
 using gnmi::CapabilityResponse;
 
-class GNMIServer final : public gNMI::Service {
-
+class GNMIServer final : public gNMI::Service
+{
   public:
 
     Status Capabilities(ServerContext* context, 
@@ -44,5 +47,18 @@ class GNMIServer final : public gNMI::Service {
     }
 };
 
+void RunServer()
+{
+  std::string server_address("0.0.0.0:57334");
+  GNMIServer service;
+  ServerBuilder builder;
+  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+  builder.RegisterService(&service);
+  std::unique_ptr<Server> server(builder.BuildAndStart());
+  std::cout << "Server listening on " << server_address << std::endl;
+  server->Wait();
+}
+
 int main (int argc, char* argv[]) {
+  RunServer();
 }
