@@ -1,8 +1,8 @@
 CXX=g++
 CXXFLAGS=-Wall -Werror -O3 -std=c++11
 LDFLAGS=`pkg-config --libs protobuf grpc++ grpc`\
-		 -Wl,--no-as-needed -lgrpc++_reflection -Wl,--as-needed\
-		 	 -ldl
+	 -Wl,--no-as-needed -lgrpc++_reflection -Wl,--as-needed\
+	 -ldl
 
 PROTOC=protoc
 GRPC_CPP_PLUGIN = grpc_cpp_plugin
@@ -45,3 +45,10 @@ $(proto_obj): %.o: %.cc
 
 clean:
 	rm -rf $(BUILD) $(PROTOS_PATH)/*.pb.cc $(PROTOS_PATH)/*.pb.h $(PROTOS_PATH)/*.pb.o $(SRC)/*.o
+
+
+## For testing purposes
+
+gnmi_encode: $(SRC)/gnmi_encode.cpp $(proto_obj)
+	$(MKDIR_P) $(BUILD)
+	$(CXX) $^ $(CXXFLAGS) $(LDFLAGS) -o $(BUILD)/$@

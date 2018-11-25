@@ -85,7 +85,7 @@ class GNMIServer final : public gNMI::Service
 
 							/*  Build a Notification Protobuf Message to communicate counters
 							 *  updates. */
-							Notification * notification = response.mutable_update();
+							Notification *notification = response.mutable_update();
 							milliseconds ts;
 
 							/*  Get non-monotic timestamp since epoch in msecs when data is
@@ -103,11 +103,11 @@ class GNMIServer final : public gNMI::Service
 
 							/* Embedded Update message inside Notification message */
 							RepeatedPtrField<Update>* updateL = notification->mutable_update();
-							Update * update = updateL->Add();
+							Update *update = updateL->Add();
 							/* If a directory path has been provided in the request, we must
 							 * get all the leaves of the file tree. */
-							Path* path = update->mutable_path();
-							PathElem* pathElem = path->add_elem();
+							Path *path = update->mutable_path();
+							PathElem *pathElem = path->add_elem();
 							pathElem->set_name("path_elem_name");
 							TypedValue* val = update->mutable_val();
 							val->set_string_val("Test message");
