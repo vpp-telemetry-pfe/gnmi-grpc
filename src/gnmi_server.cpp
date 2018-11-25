@@ -76,40 +76,40 @@ class GNMIServer final : public gNMI::Service
         switch (request.subscribe().mode()) {
           case SubscriptionList_Mode_STREAM:
             {
-              auto notification = std::make_unique<Notification>();
+              Notification* notification = new Notification();
               // Notification.timestamp
               notification->set_timestamp(std::time(0));
               // Notification.prefix
               if (request.subscribe().has_prefix()) {
-                auto prefix = std::make_unique<Path>();
+                Path* prefix = new Path();
                 prefix->set_target(request.subscribe().prefix().target());
-                notification->set_allocated_prefix(prefix.get());
+                notification->set_allocated_prefix(prefix);
               }
               // Notification.alias
               //TODO
               // Notification.update
-              auto update = std::make_unique<Update>();
-              update->set_duplicates(0);
+              Update* update = new Update();
               // Notification.upate.path
-              auto path = std::make_unique<Path>();
-              auto pathElem = std::make_unique<PathElem>();
+              Path* path = new Path();
+              PathElem* pathElem = new PathElem();
               pathElem->set_name("path_elem_name");
               /**
                * TODO: Add pathElem to path before adding path to update
                * path->add_elem();
                */
-              update->set_allocated_path(path.get());
+              update->set_allocated_path(path);
               // Notification.update.val
-              auto val = std::make_unique<TypedValue>();
+              TypedValue* val = new TypedValue();
               val->set_string_val("Test message");
-              update->set_allocated_val(val.get());
+              update->set_allocated_val(val);
+              update->set_duplicates(0);
               // Notification.delete
               //TODO
               // Notification.atomic
               notification->set_atomic(false);
 
               // First message: notification message
-              response.set_allocated_update(notification.get());
+              response.set_allocated_update(notification);
               stream->Write(response);
               // Second message: sync message
               response.clear_update();
