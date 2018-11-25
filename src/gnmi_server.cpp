@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <memory>
+#include <chrono>
 #include <google/protobuf/repeated_field.h>
 
 #include <grpc/grpc.h>
@@ -36,6 +37,8 @@ using gnmi::SubscriptionList_Mode_POLL;
 using gnmi::SubscriptionList_Mode_STREAM;
 using google::protobuf::RepeatedPtrField;
 
+using namespace std::chrono;
+
 class GNMIServer final : public gNMI::Service
 {
 	public:
@@ -66,26 +69,29 @@ class GNMIServer final : public gNMI::Service
 		{
 			SubscribeRequest request;
 			SubscribeResponse response;
+
 			// This only handles the case of a new RPC yet
 			while (stream->Read(&request)) {
 				// Replies with an error if there is no SubscriptionList field
 				if (!request.has_subscribe()) {
-					//TODO: Return the error code in a SubscriptionRequest message
-					//stream->Write(response);
 					context->TryCancel();
 					return Status(StatusCode::CANCELLED, grpc::string(
-								"A SubscribeRequest needs a non-empty SubscriptionList"));
+												"SubscribeRequest needs non-empty SubscriptionList"));
 				}
-				// Handles a well-formed request (i.e. with a SubscriptionList field)
 				switch (request.subscribe().mode()) {
 					case SubscriptionList_Mode_STREAM:
 						{
-							std::cout << "Received a request" << std::endl;
+							std::cout << "Received a STREAM subscription req" << std::endl;
+
 							/*  Build a Notification Protobuf Message to communicate counters
 							 *  updates. */
 							Notification * notification = response.mutable_update();
+							milliseconds ts;
 
-							notification->set_timestamp(std::time(0));
+							/*  Get non-monotic timestamp since epoch in msecs when data is
+							 *  generated */
+							ts = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
+							notification->set_timestamp(ts.count());
 
 							/*  Prefix for all counter paths */
 							if (request.subscribe().has_prefix()) {
@@ -123,9 +129,24 @@ class GNMIServer final : public gNMI::Service
 
 							break;
 						}
+					case SubscriptionList_Mode_ONCE:
+						{
+							/* TODO: Same as above but no need for a thread to handle it */
+							std::cout << "Received a ONCE subscription req" << std::endl;
+							return Status(StatusCode::UNIMPLEMENTED,
+														grpc::string("ONCE mode not implemented yet"));
+							break;
+						}
+					case SubscriptionList_Mode_POLL:
+						{
+							std::cout << "Received a POLL subscription req" << std::endl;
+							return Status(StatusCode::UNIMPLEMENTED,
+														grpc::string("POLL mode not available"));
+							break;
+						}
 					default:
 						return Status(StatusCode::UNIMPLEMENTED,
-								grpc::string("POLL and ONCE modes not implemented yet"));
+													grpc::string("Mode not available"));
 				}
 			}
 
