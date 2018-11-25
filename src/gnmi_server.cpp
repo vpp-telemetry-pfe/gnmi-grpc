@@ -81,11 +81,13 @@ class GNMIServer final : public gNMI::Service
 					case SubscriptionList_Mode_STREAM:
 						{
 							std::cout << "Received a request" << std::endl;
-							/*  Build a new Notificiation Protobuf Message */
+							/*  Build a Notification Protobuf Message to communicate counters
+							 *  updates. */
 							Notification * notification = response.mutable_update();
 
 							notification->set_timestamp(std::time(0));
 
+							/*  Prefix for all counter paths */
 							if (request.subscribe().has_prefix()) {
 								Path* prefix = notification->mutable_prefix();
 								prefix->set_target(request.subscribe().prefix().target());
@@ -95,8 +97,9 @@ class GNMIServer final : public gNMI::Service
 
 							/* Embedded Update message inside Notification message */
 							RepeatedPtrField<Update>* updateL = notification->mutable_update();
-
 							Update * update = updateL->Add();
+							/* If a directory path has been provided in the request, we must
+							 * get all the leaves of the file tree. */
 							Path* path = update->mutable_path();
 							PathElem* pathElem = path->add_elem();
 							pathElem->set_name("path_elem_name");

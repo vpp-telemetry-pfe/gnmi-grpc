@@ -1,4 +1,5 @@
 build/
+gnmi_server
 *.env
 *.ycm*
 **/*.pb.*
