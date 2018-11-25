@@ -38,109 +38,110 @@ using google::protobuf::RepeatedPtrField;
 
 class GNMIServer final : public gNMI::Service
 {
-  public:
+	public:
 
-    Status Capabilities(ServerContext* context,
-        const CapabilityRequest* request, CapabilityResponse* response)
-    {
-      return Status(StatusCode::UNIMPLEMENTED,
-          grpc::string("'Capabilities' not implemented yet"));
-    }
+		Status Capabilities(ServerContext* context,
+				const CapabilityRequest* request, CapabilityResponse* response)
+		{
+			return Status(StatusCode::UNIMPLEMENTED,
+					grpc::string("'Capabilities' not implemented yet"));
+		}
 
-    Status Get(ServerContext* context,
-        const GetRequest* request, GetResponse* response)
-    {
-      return Status(StatusCode::UNIMPLEMENTED,
-          grpc::string("'Get' method not implemented yet"));
-    }
+		Status Get(ServerContext* context,
+				const GetRequest* request, GetResponse* response)
+		{
+			return Status(StatusCode::UNIMPLEMENTED,
+					grpc::string("'Get' method not implemented yet"));
+		}
 
-    Status Set(ServerContext* context,
-        const SetRequest* request, SetResponse* response)
-    {
-      return Status(StatusCode::UNIMPLEMENTED,
-          grpc::string("'Set' method not implemented yet"));
-    }
+		Status Set(ServerContext* context,
+				const SetRequest* request, SetResponse* response)
+		{
+			return Status(StatusCode::UNIMPLEMENTED,
+					grpc::string("'Set' method not implemented yet"));
+		}
 
-    Status Subscribe(ServerContext* context,
-        ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
-    {
-      SubscribeRequest request;
-      SubscribeResponse response;
-      // This only handles the case of a new RPC yet
-      while (stream->Read(&request)) {
-        // Replies with an error if there is no SubscriptionList field
-        if (!request.has_subscribe()) {
-          //TODO: Return the error code in a SubscriptionRequest message
-          //stream->Write(response);
-          context->TryCancel();
-          return Status(StatusCode::CANCELLED, grpc::string(
-                "A SubscribeRequest needs a non-empty SubscriptionList"));
-        }
-        // Handles a well-formed request (i.e. with a SubscriptionList field)
-        switch (request.subscribe().mode()) {
-          case SubscriptionList_Mode_STREAM:
-            {
+		Status Subscribe(ServerContext* context,
+				ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
+		{
+			SubscribeRequest request;
+			SubscribeResponse response;
+			// This only handles the case of a new RPC yet
+			while (stream->Read(&request)) {
+				// Replies with an error if there is no SubscriptionList field
+				if (!request.has_subscribe()) {
+					//TODO: Return the error code in a SubscriptionRequest message
+					//stream->Write(response);
+					context->TryCancel();
+					return Status(StatusCode::CANCELLED, grpc::string(
+								"A SubscribeRequest needs a non-empty SubscriptionList"));
+				}
+				// Handles a well-formed request (i.e. with a SubscriptionList field)
+				switch (request.subscribe().mode()) {
+					case SubscriptionList_Mode_STREAM:
+						{
 							std::cout << "Received a request" << std::endl;
 							/*  Build a new Notificiation Protobuf Message */
-              Notification* notification = new Notification();
+							Notification * notification = response.mutable_update();
 
-              notification->set_timestamp(std::time(0));
+							notification->set_timestamp(std::time(0));
 
-              if (request.subscribe().has_prefix()) {
-                Path* prefix = notification->mutable_prefix();
-                prefix->set_target(request.subscribe().prefix().target());
-              }
+							if (request.subscribe().has_prefix()) {
+								Path* prefix = notification->mutable_prefix();
+								prefix->set_target(request.subscribe().prefix().target());
+							}
 
-              // TODO : Notification.alias
+							// TODO : Notification.alias
 
-              /* Embedded Update message inside Notification message */
-              RepeatedPtrField<Update>* updateL = notification->mutable_update();
+							/* Embedded Update message inside Notification message */
+							RepeatedPtrField<Update>* updateL = notification->mutable_update();
 
 							Update * update = updateL->Add();
-              Path* path = update->mutable_path();
-              PathElem* pathElem = path->add_elem();
-              pathElem->set_name("path_elem_name");
-              TypedValue* val = update->mutable_val();
-              val->set_string_val("Test message");
-              update->set_duplicates(0);
+							Path* path = update->mutable_path();
+							PathElem* pathElem = path->add_elem();
+							pathElem->set_name("path_elem_name");
+							TypedValue* val = update->mutable_val();
+							val->set_string_val("Test message");
+							update->set_duplicates(0);
 
-              // TODO: Notification.delete
+							// TODO: Notification.delete
 
-              // Notification.atomic
-              notification->set_atomic(false);
+							// Notification.atomic
+							notification->set_atomic(false);
 
-              // Send first message: notification message
-							std::cout << notification->DebugString() << std::endl;
-              stream->Write(response);
+							// Send first message: notification message
+							std::cout << response.DebugString() << std::endl;
+							stream->Write(response);
 
-              // Send second message: sync message
-              response.clear_update();
-              response.set_sync_response(true);
-              stream->Write(response);
-              break;
-            }
-          default:
-            return Status(StatusCode::UNIMPLEMENTED,
-                grpc::string("POLL and ONCE modes not implemented yet"));
-        }
-      }
+							// Send second message: sync message
+							response.clear_update();
+							response.set_sync_response(true);
+							stream->Write(response);
 
-      return Status::OK;
-    }
+							break;
+						}
+					default:
+						return Status(StatusCode::UNIMPLEMENTED,
+								grpc::string("POLL and ONCE modes not implemented yet"));
+				}
+			}
+
+			return Status::OK;
+		}
 };
 
 void RunServer()
 {
-  std::string server_address("0.0.0.0:50051");
-  GNMIServer service;
-  ServerBuilder builder;
-  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-  builder.RegisterService(&service);
-  std::unique_ptr<Server> server(builder.BuildAndStart());
-  std::cout << "Server listening on " << server_address << std::endl;
-  server->Wait();
+	std::string server_address("0.0.0.0:50051");
+	GNMIServer service;
+	ServerBuilder builder;
+	builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+	builder.RegisterService(&service);
+	std::unique_ptr<Server> server(builder.BuildAndStart());
+	std::cout << "Server listening on " << server_address << std::endl;
+	server->Wait();
 }
 
 int main (int argc, char* argv[]) {
-  RunServer();
+	RunServer();
 }
