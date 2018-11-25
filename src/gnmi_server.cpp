@@ -1,5 +1,8 @@
+/*  vim:set softtabstop=2 shiftwidth=2 tabstop=2 smarttab: */
+
 #include <iostream>
 #include <memory>
+#include <google/protobuf/repeated_field.h>
 
 #include <grpc/grpc.h>
 #include <grpcpp/server.h>
@@ -31,35 +34,36 @@ using gnmi::CapabilityResponse;
 using gnmi::SubscriptionList_Mode_ONCE;
 using gnmi::SubscriptionList_Mode_POLL;
 using gnmi::SubscriptionList_Mode_STREAM;
+using google::protobuf::RepeatedPtrField;
 
 class GNMIServer final : public gNMI::Service
 {
   public:
 
-    Status Capabilities(ServerContext* context, 
+    Status Capabilities(ServerContext* context,
         const CapabilityRequest* request, CapabilityResponse* response)
     {
       return Status(StatusCode::UNIMPLEMENTED,
           grpc::string("'Capabilities' not implemented yet"));
     }
 
-    Status Get(ServerContext* context, 
+    Status Get(ServerContext* context,
         const GetRequest* request, GetResponse* response)
     {
       return Status(StatusCode::UNIMPLEMENTED,
           grpc::string("'Get' method not implemented yet"));
     }
 
-    Status Set(ServerContext* context, 
+    Status Set(ServerContext* context,
         const SetRequest* request, SetResponse* response)
     {
       return Status(StatusCode::UNIMPLEMENTED,
           grpc::string("'Set' method not implemented yet"));
     }
 
-    Status Subscribe(ServerContext* context, 
+    Status Subscribe(ServerContext* context,
         ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
-    {      
+    {
       SubscribeRequest request;
       SubscribeResponse response;
       // This only handles the case of a new RPC yet
@@ -76,42 +80,40 @@ class GNMIServer final : public gNMI::Service
         switch (request.subscribe().mode()) {
           case SubscriptionList_Mode_STREAM:
             {
+							std::cout << "Received a request" << std::endl;
+							/*  Build a new Notificiation Protobuf Message */
               Notification* notification = new Notification();
-              // Notification.timestamp
+
               notification->set_timestamp(std::time(0));
-              // Notification.prefix
+
               if (request.subscribe().has_prefix()) {
-                Path* prefix = new Path();
+                Path* prefix = notification->mutable_prefix();
                 prefix->set_target(request.subscribe().prefix().target());
-                notification->set_allocated_prefix(prefix);
               }
-              // Notification.alias
-              //TODO
-              // Notification.update
-              Update* update = new Update();
-              // Notification.upate.path
-              Path* path = new Path();
-              PathElem* pathElem = new PathElem();
+
+              // TODO : Notification.alias
+
+              /* Embedded Update message inside Notification message */
+              RepeatedPtrField<Update>* updateL = notification->mutable_update();
+
+							Update * update = updateL->Add();
+              Path* path = update->mutable_path();
+              PathElem* pathElem = path->add_elem();
               pathElem->set_name("path_elem_name");
-              /**
-               * TODO: Add pathElem to path before adding path to update
-               * path->add_elem();
-               */
-              update->set_allocated_path(path);
-              // Notification.update.val
-              TypedValue* val = new TypedValue();
+              TypedValue* val = update->mutable_val();
               val->set_string_val("Test message");
-              update->set_allocated_val(val);
               update->set_duplicates(0);
-              // Notification.delete
-              //TODO
+
+              // TODO: Notification.delete
+
               // Notification.atomic
               notification->set_atomic(false);
 
-              // First message: notification message
-              response.set_allocated_update(notification);
+              // Send first message: notification message
+							std::cout << notification->DebugString() << std::endl;
               stream->Write(response);
-              // Second message: sync message
+
+              // Send second message: sync message
               response.clear_update();
               response.set_sync_response(true);
               stream->Write(response);
