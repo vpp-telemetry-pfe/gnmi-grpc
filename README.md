@@ -10,7 +10,37 @@ VPP has an implementation which uses HTTP polling to collect telemetry counters 
 
 The idea is to use pipeline-gnmi data collector to create telemetry subscriptions with gRPC server and then to stream these informations to the data collector.
 
-## Install
+## Requirements
+
+grpc version > 1.9.x
+protobuf >= 3.0 & compatible with gRPC
+
+## With docker
+
+Install:
+========
+
+Go to docker directory.
+
+```
+make clean
+docker build .
+```
+
+Run:
+====
+
+`docker run <n° docker image>`
+
+```
+docker ps
+docker run <n° process>
+```
+
+## Raw setup
+
+Install:
+========
 
 In order to run gRPC server with pipeline-gnmi you will need a working version of gRPC cplusplus with google protocol buffer version 3.
 Please read the following instructions [https://github.com/grpc/grpc/blob/master/BUILDING.md ](https://github.com/grpc/grpc/blob/master/BUILDING.md ).
@@ -24,7 +54,8 @@ You will need to compile grpc and install third_parties/protobuf to run compaitb
 
 `git clone https://github.com/vpp-telemetry-pfe/gnmi-grpc.git`
 
-## Run
+Run:
+====
 
 * Run an gnmi_server:
 
@@ -33,3 +64,7 @@ You will need to compile grpc and install third_parties/protobuf to run compaitb
 * Run pipeline with pipeline.conf file provided in gnmi-grpc repository:
 
 `./bin/pipeline -c <path to pipeline.conf>`
+
+## Further notes
+
+gRPC has switched from grpc++ to grpcpp directory in header file. Thus, you need a recent version of gRPC.
