@@ -2,7 +2,7 @@ CXX=g++
 CXXFLAGS=-Wall -Werror -O3 -std=c++11
 LDFLAGS=`pkg-config --libs protobuf grpc++ grpc`\
 	 -Wl,--no-as-needed -lgrpc++_reflection -Wl,--as-needed\
-	 -ldl
+	 -ldl -lpthread
 
 PROTOC=protoc
 GRPC_CPP_PLUGIN = grpc_cpp_plugin

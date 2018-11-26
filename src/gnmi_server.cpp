@@ -3,6 +3,7 @@
 #include <iostream>
 #include <memory>
 #include <chrono>
+#include <pthread.h>
 #include <google/protobuf/repeated_field.h>
 
 #include <grpc/grpc.h>
@@ -45,6 +46,66 @@ using google::protobuf::RepeatedPtrField;
 
 using namespace std::chrono;
 
+void BuildNotification(
+    const SubscribeRequest& request, SubscribeResponse& response)
+{
+  Notification *notification = response.mutable_update();
+  milliseconds ts;
+
+  /*  Get non-monotic timestamp since epoch in msecs when data is
+    *  generated */
+  ts = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
+  notification->set_timestamp(ts.count());
+
+  // Prefix for all counter paths
+  if (request.subscribe().has_prefix()) {
+    Path* prefix = notification->mutable_prefix();
+    prefix->set_target(request.subscribe().prefix().target());
+  }
+
+  // TODO : Notification.alias
+
+  // repeated Notification.update
+  for (int i=0; i<request.subscribe().subscription_size(); i++) {
+    Subscription sub = request.subscribe().subscription(i);
+    RepeatedPtrField<Update>* updateL = 
+      notification->mutable_update();
+    Update* update = updateL->Add();
+    /* If a directory path has been provided in the request, we must
+    * get all the leaves of the file tree. */
+    Path* path = update->mutable_path();
+    path->CopyFrom(sub.path());
+    /* UnixtoGnmiPath("/err/vmxnet3-input/Rx no buffer error", path);
+    PathElem* pathElem = path->add_elem();
+    pathElem->set_name("path_elem_name"); */
+    TypedValue* val = update->mutable_val();
+    val->set_string_val("Test message number " + std::to_string(i));
+    update->set_duplicates(0);
+  }
+
+  // TODO: Notification.delete
+
+  // Notification.atomic
+  notification->set_atomic(false);
+}
+
+void* StreamRoutine(void* threadarg)
+{
+  std::cout << "Thread launched" << std::endl;
+  SubscribeRequest* request = (SubscribeRequest*) threadarg;
+  std::cout << request->DebugString() << std::endl;
+  // TODO: Handle the different STREAM SubscriptionModes
+  /*
+  switch (sub.mode()) {
+    case TARGET_DEFINED: { break; }
+    case ON_CHANGE: { break; }
+    case SAMPLE: { break; }
+    default: { break; }
+  }
+  */
+  pthread_exit(NULL);
+}
+
 class GNMIServer final : public gNMI::Service
 {
 	public:
@@ -78,6 +139,7 @@ class GNMIServer final : public gNMI::Service
 
 			// This only handles the case of a new RPC yet
 			while (stream->Read(&request)) {
+
 				// Replies with an error if there is no SubscriptionList field
 				if (!request.has_subscribe()) {
 					// TODO: Return the error code in a SubscriptionRequest message
@@ -86,58 +148,13 @@ class GNMIServer final : public gNMI::Service
 					return Status(StatusCode::CANCELLED, grpc::string(
 												"SubscribeRequest needs non-empty SubscriptionList"));
 				}
+
 				switch (request.subscribe().mode()) {
 					case SubscriptionList_Mode_STREAM:
 						{
 							std::cout << "Received a STREAM SubscribeRequest" << std::endl;
 
-							/*  Build a Notification Protobuf Message to communicate counters
-							 *  updates. */
-							Notification *notification = response.mutable_update();
-							milliseconds ts;
-
-							/*  Get non-monotic timestamp since epoch in msecs when data is
-							 *  generated */
-							ts = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
-							notification->set_timestamp(ts.count());
-
-							// Prefix for all counter paths
-							if (request.subscribe().has_prefix()) {
-								Path* prefix = notification->mutable_prefix();
-								prefix->set_target(request.subscribe().prefix().target());
-							}
-
-							// TODO : Notification.alias
-
-              // repeated Notification.update
-              for (int i=0; i<request.subscribe().subscription_size(); i++) {
-							  Subscription sub = request.subscribe().subscription(i);
-                RepeatedPtrField<Update>* updateL = 
-                  notification->mutable_update();
-                Update* update = updateL->Add();
-                /* If a directory path has been provided in the request, we must
-                * get all the leaves of the file tree. */
-                Path* path = update->mutable_path();
-                path->CopyFrom(sub.path());
-							  /* UnixtoGnmiPath("/err/vmxnet3-input/Rx no buffer error", path);
-                PathElem* pathElem = path->add_elem();
-                pathElem->set_name("path_elem_name"); */
-                TypedValue* val = update->mutable_val();
-                val->set_string_val("Test message number " + std::to_string(i));
-							  update->set_duplicates(0);
-							  // TODO: Handle the different STREAM SubscriptionModes
-							  switch (sub.mode()) {
-                  case TARGET_DEFINED: { break; }
-                  case ON_CHANGE: { break; }
-                  case SAMPLE: { break; }
-                  default: { break; }
-                }
-              }
-
-							// TODO: Notification.delete
-
-							// Notification.atomic
-							notification->set_atomic(false);
+							BuildNotification(request, response);
 
 							// Send first message: notification message
 							std::cout << response.DebugString() << std::endl;
@@ -149,7 +166,13 @@ class GNMIServer final : public gNMI::Service
 							std::cout << response.DebugString() << std::endl;
 							stream->Write(response);
 
-							break;
+              // Launch dedicated thread to keep streaming updates
+							pthread_t thread;
+							if (pthread_create(
+							      &thread, NULL, StreamRoutine, (void *) &request)) {
+                std::cout << "Error launching thread" << std::endl;
+              }
+            break;
 						}
 					case SubscriptionList_Mode_ONCE:
 						{
