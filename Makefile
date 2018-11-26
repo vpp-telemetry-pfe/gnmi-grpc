@@ -22,7 +22,7 @@ proto_obj=proto/gnmi_ext.pb.o proto/gnmi.pb.o proto/gnmi_ext.grpc.pb.o \
 
 all: gnmi_server
 
-gnmi_server: $(SRC)/gnmi_server.cpp $(proto_obj)
+gnmi_server: $(SRC)/gnmi_server.cpp $(proto_obj) $(SRC)/gnmi_encode.o
 	$(info ****** Compile and Link server ******)
 	$(MKDIR_P) $(BUILD)
 	$(CXX) $^ $(CXXFLAGS) $(LDFLAGS) -o $(BUILD)/$@

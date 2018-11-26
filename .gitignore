@@ -3,3 +3,4 @@ gnmi_server
 *.env
 *.ycm*
 **/*.pb.*
+*.o

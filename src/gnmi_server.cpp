@@ -8,7 +8,9 @@
 #include <grpc/grpc.h>
 #include <grpcpp/server.h>
 #include <grpcpp/server_builder.h>
+
 #include "../proto/gnmi.grpc.pb.h"
+#include "gnmi_encode.h"
 
 using grpc::Status;
 using grpc::StatusCode;
@@ -107,8 +109,7 @@ class GNMIServer final : public gNMI::Service
 							/* If a directory path has been provided in the request, we must
 							 * get all the leaves of the file tree. */
 							Path *path = update->mutable_path();
-							PathElem *pathElem = path->add_elem();
-							pathElem->set_name("path_elem_name");
+							UnixtoGnmiPath("/err/vmxnet3-input/Rx no buffer error", path);
 							TypedValue* val = update->mutable_val();
 							val->set_string_val("Test message");
 							update->set_duplicates(0);

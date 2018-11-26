@@ -46,11 +46,11 @@ void UnixtoGnmiPath(string unixp, Path* path)
 /**
  * For testing purposes only
  */
-int main (int argc, char **argv)
-{
-	Path path;
-
-	UnixtoGnmiPath("/usr/local/bin", &path);
-
-	return 0;
-}
+//int main (int argc, char **argv)
+//{
+//	Path path;
+//
+//	UnixtoGnmiPath("/usr/local/bin", &path);
+//
+//	return 0;
+//}
