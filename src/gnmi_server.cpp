@@ -31,12 +31,16 @@ using gnmi::GetResponse;
 using gnmi::SetResponse;
 using gnmi::SubscribeRequest;
 using gnmi::SubscribeResponse;
+using gnmi::Subscription;
 using gnmi::SubscriptionList;
 using gnmi::CapabilityRequest;
 using gnmi::CapabilityResponse;
 using gnmi::SubscriptionList_Mode_ONCE;
 using gnmi::SubscriptionList_Mode_POLL;
 using gnmi::SubscriptionList_Mode_STREAM;
+using gnmi::SAMPLE;
+using gnmi::ON_CHANGE;
+using gnmi::TARGET_DEFINED;
 using google::protobuf::RepeatedPtrField;
 
 using namespace std::chrono;
@@ -76,6 +80,8 @@ class GNMIServer final : public gNMI::Service
 			while (stream->Read(&request)) {
 				// Replies with an error if there is no SubscriptionList field
 				if (!request.has_subscribe()) {
+					// TODO: Return the error code in a SubscriptionRequest message
+					// Ref: 3.5.1.1
 					context->TryCancel();
 					return Status(StatusCode::CANCELLED, grpc::string(
 												"SubscribeRequest needs non-empty SubscriptionList"));
@@ -83,7 +89,7 @@ class GNMIServer final : public gNMI::Service
 				switch (request.subscribe().mode()) {
 					case SubscriptionList_Mode_STREAM:
 						{
-							std::cout << "Received a STREAM subscription req" << std::endl;
+							std::cout << "Received a STREAM SubscribeRequest" << std::endl;
 
 							/*  Build a Notification Protobuf Message to communicate counters
 							 *  updates. */
@@ -95,7 +101,7 @@ class GNMIServer final : public gNMI::Service
 							ts = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
 							notification->set_timestamp(ts.count());
 
-							/*  Prefix for all counter paths */
+							// Prefix for all counter paths
 							if (request.subscribe().has_prefix()) {
 								Path* prefix = notification->mutable_prefix();
 								prefix->set_target(request.subscribe().prefix().target());
@@ -103,16 +109,30 @@ class GNMIServer final : public gNMI::Service
 
 							// TODO : Notification.alias
 
-							/* Embedded Update message inside Notification message */
-							RepeatedPtrField<Update>* updateL = notification->mutable_update();
-							Update *update = updateL->Add();
-							/* If a directory path has been provided in the request, we must
-							 * get all the leaves of the file tree. */
-							Path *path = update->mutable_path();
-							UnixtoGnmiPath("/err/vmxnet3-input/Rx no buffer error", path);
-							TypedValue* val = update->mutable_val();
-							val->set_string_val("Test message");
-							update->set_duplicates(0);
+              // repeated Notification.update
+              for (int i=0; i<request.subscribe().subscription_size(); i++) {
+							  Subscription sub = request.subscribe().subscription(i);
+                RepeatedPtrField<Update>* updateL = 
+                  notification->mutable_update();
+                Update* update = updateL->Add();
+                /* If a directory path has been provided in the request, we must
+                * get all the leaves of the file tree. */
+                Path* path = update->mutable_path();
+                path->CopyFrom(sub.path());
+							  /* UnixtoGnmiPath("/err/vmxnet3-input/Rx no buffer error", path);
+                PathElem* pathElem = path->add_elem();
+                pathElem->set_name("path_elem_name"); */
+                TypedValue* val = update->mutable_val();
+                val->set_string_val("Test message number " + std::to_string(i));
+							  update->set_duplicates(0);
+							  // TODO: Handle the different STREAM SubscriptionModes
+							  switch (sub.mode()) {
+                  case TARGET_DEFINED: { break; }
+                  case ON_CHANGE: { break; }
+                  case SAMPLE: { break; }
+                  default: { break; }
+                }
+              }
 
 							// TODO: Notification.delete
 
@@ -126,6 +146,7 @@ class GNMIServer final : public gNMI::Service
 							// Send second message: sync message
 							response.clear_update();
 							response.set_sync_response(true);
+							std::cout << response.DebugString() << std::endl;
 							stream->Write(response);
 
 							break;
@@ -133,21 +154,21 @@ class GNMIServer final : public gNMI::Service
 					case SubscriptionList_Mode_ONCE:
 						{
 							/* TODO: Same as above but no need for a thread to handle it */
-							std::cout << "Received a ONCE subscription req" << std::endl;
+							std::cout << "Received a ONCE SubscribeRequest" << std::endl;
 							return Status(StatusCode::UNIMPLEMENTED,
 														grpc::string("ONCE mode not implemented yet"));
 							break;
 						}
 					case SubscriptionList_Mode_POLL:
 						{
-							std::cout << "Received a POLL subscription req" << std::endl;
+							std::cout << "Received a POLL SubscribeRequest" << std::endl;
 							return Status(StatusCode::UNIMPLEMENTED,
-														grpc::string("POLL mode not available"));
+														grpc::string("POLL mode not implemented yet"));
 							break;
 						}
 					default:
 						return Status(StatusCode::UNIMPLEMENTED,
-													grpc::string("Mode not available"));
+													grpc::string("Unkown mode"));
 				}
 			}
 
