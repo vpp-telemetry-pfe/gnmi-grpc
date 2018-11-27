@@ -138,6 +138,17 @@ class GNMIServer final : public gNMI::Service
       SubscribeRequest request;
       SubscribeResponse response;
 
+      /* TODO Retrieve Server Context metadata */
+      std::multimap<grpc::string_ref, grpc::string_ref> metadata;
+      metadata = context->client_metadata();
+
+      for (std::multimap<grpc::string_ref, grpc::string_ref>::const_iterator iter = metadata.begin();
+           iter != metadata.end();
+           ++iter ) {
+        cout << iter->first << '\t' << iter->second << '\n';
+      }
+      /* TODO: End Of TODO */
+
       // This only handles the case of a new RPC yet
       while (stream->Read(&request)) {
 
@@ -218,32 +229,68 @@ static void show_usage(std::string name)
   std::cerr << "Usage: " << name << " <option(s)>\n"
     << "Options:\n"
     << "\t-h,--help\tShow this help message\n"
-    << "\t-t,--tls \tUse TLS encryption communicationis"
+    << "\t-u,--username USERNAME\tDefine connection username\n"
+    << "\t-p,--password PASSWORD\tDefine connection password\n"
+    << "\t-t,--tls \tUse TLS encryption communication"
     << std::endl;
 }
 
 int main (int argc, char* argv[]) {
   int c;
   int option_index = 0;
+  extern char * optarg;
 
   static struct option long_options[] =
   {
     {"help", no_argument, 0, 'h'},
+    {"username", required_argument, 0, 'u'},
+    {"password", required_argument, 0, 'p'},
     {"tls", no_argument, 0, 't'},
     {0, 0, 0, 0}
   };
 
-  while ((c = getopt_long(argc, argv, "h:t", long_options, &option_index)) != -1) {
+  /* "a::b:c:" means a is optional, b & c are mandatory */
+  while ((c = getopt_long(argc, argv, "hp::u::t", long_options, &option_index)) != -1) {
     switch (c)
     {
       case 'h':
-        show_usage(argv[0]);
-        exit(0);
+        {
+          show_usage(argv[0]);
+          exit(0);
+          break;
+        }
+      case 'u':
+        {
+          if (optarg) {
+            std::string username = string(optarg);
+            std::cout << "username: " << username << std::endl;
+          } else {
+            std::cerr << "Please specify a string with username option\n"
+              << "Ex: -uUSERNAME" << std::endl;
+            exit(1);
+          }
+          break;
+        }
+      case 'p':
+        {
+          if (optarg) {
+            std::string password = string(optarg);
+            std::cout << "password: " << password << std::endl;
+          } else {
+            std::cerr << "Please specify a string with password option\n"
+              << "Ex: -pPASSWORD" << std::endl;
+            exit(1);
+          }
+          break;
+        }
       case 't':
         std::cout << "tls option set" << std::endl;
-        break;
       default:
-        std::cout << "OUPS" <<std::endl;
+        {
+          show_usage(argv[0]);
+          exit(0);
+          break;
+        }
     }
   }
 
