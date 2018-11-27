@@ -1,9 +1,10 @@
-/*  vim:set softtabstop=2 shiftwidth=2 tabstop=2 smarttab: */
+/*  vim:set softtabstop=2 shiftwidth=2 tabstop=2 expandtab: */
 
 #include <iostream>
 #include <memory>
 #include <chrono>
 #include <pthread.h>
+#include <getopt.h>
 #include <google/protobuf/repeated_field.h>
 
 #include <grpc/grpc.h>
@@ -68,7 +69,7 @@ void BuildNotification(
   // repeated Notification.update
   for (int i=0; i<request.subscribe().subscription_size(); i++) {
     Subscription sub = request.subscribe().subscription(i);
-    RepeatedPtrField<Update>* updateL = 
+    RepeatedPtrField<Update>* updateL =
       notification->mutable_update();
     Update* update = updateL->Add();
     /* If a directory path has been provided in the request, we must
@@ -108,109 +109,143 @@ void* StreamRoutine(void* threadarg)
 
 class GNMIServer final : public gNMI::Service
 {
-	public:
+  public:
 
-		Status Capabilities(ServerContext* context,
-				const CapabilityRequest* request, CapabilityResponse* response)
-		{
-			return Status(StatusCode::UNIMPLEMENTED,
-					grpc::string("'Capabilities' not implemented yet"));
-		}
+    Status Capabilities(ServerContext* context,
+        const CapabilityRequest* request, CapabilityResponse* response)
+    {
+      return Status(StatusCode::UNIMPLEMENTED,
+          grpc::string("'Capabilities' not implemented yet"));
+    }
 
-		Status Get(ServerContext* context,
-				const GetRequest* request, GetResponse* response)
-		{
-			return Status(StatusCode::UNIMPLEMENTED,
-					grpc::string("'Get' method not implemented yet"));
-		}
+    Status Get(ServerContext* context,
+        const GetRequest* request, GetResponse* response)
+    {
+      return Status(StatusCode::UNIMPLEMENTED,
+          grpc::string("'Get' method not implemented yet"));
+    }
 
-		Status Set(ServerContext* context,
-				const SetRequest* request, SetResponse* response)
-		{
-			return Status(StatusCode::UNIMPLEMENTED,
-					grpc::string("'Set' method not implemented yet"));
-		}
+    Status Set(ServerContext* context,
+        const SetRequest* request, SetResponse* response)
+    {
+      return Status(StatusCode::UNIMPLEMENTED,
+          grpc::string("'Set' method not implemented yet"));
+    }
 
-		Status Subscribe(ServerContext* context,
-				ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
-		{
-			SubscribeRequest request;
-			SubscribeResponse response;
+    Status Subscribe(ServerContext* context,
+        ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
+    {
+      SubscribeRequest request;
+      SubscribeResponse response;
 
-			// This only handles the case of a new RPC yet
-			while (stream->Read(&request)) {
+      // This only handles the case of a new RPC yet
+      while (stream->Read(&request)) {
 
-				// Replies with an error if there is no SubscriptionList field
-				if (!request.has_subscribe()) {
-					// TODO: Return the error code in a SubscriptionRequest message
-					// Ref: 3.5.1.1
-					context->TryCancel();
-					return Status(StatusCode::CANCELLED, grpc::string(
-												"SubscribeRequest needs non-empty SubscriptionList"));
-				}
+        // Replies with an error if there is no SubscriptionList field
+        if (!request.has_subscribe()) {
+          // TODO: Return the error code in a SubscriptionRequest message
+          // Ref: 3.5.1.1
+          context->TryCancel();
+          return Status(StatusCode::CANCELLED, grpc::string(
+                        "SubscribeRequest needs non-empty SubscriptionList"));
+        }
 
-				switch (request.subscribe().mode()) {
-					case SubscriptionList_Mode_STREAM:
-						{
-							std::cout << "Received a STREAM SubscribeRequest" << std::endl;
+        switch (request.subscribe().mode()) {
+          case SubscriptionList_Mode_STREAM:
+            {
+              std::cout << "Received a STREAM SubscribeRequest" << std::endl;
 
-							BuildNotification(request, response);
+              BuildNotification(request, response);
 
-							// Send first message: notification message
-							std::cout << response.DebugString() << std::endl;
-							stream->Write(response);
+              // Send first message: notification message
+              std::cout << "Response message:" << std::endl;
+              std::cout << response.DebugString() << std::endl;
+              stream->Write(response);
 
-							// Send second message: sync message
-							response.clear_update();
-							response.set_sync_response(true);
-							std::cout << response.DebugString() << std::endl;
-							stream->Write(response);
+              // Send second message: sync message
+              response.clear_update();
+              response.set_sync_response(true);
+              std::cout << response.DebugString() << std::endl;
+              stream->Write(response);
 
               // Launch dedicated thread to keep streaming updates
-							pthread_t thread;
-							if (pthread_create(
-							      &thread, NULL, StreamRoutine, (void *) &request)) {
+              pthread_t thread;
+              if (pthread_create(
+                    &thread, NULL, StreamRoutine, (void *) &request)) {
                 std::cout << "Error launching thread" << std::endl;
               }
             break;
-						}
-					case SubscriptionList_Mode_ONCE:
-						{
-							/* TODO: Same as above but no need for a thread to handle it */
-							std::cout << "Received a ONCE SubscribeRequest" << std::endl;
-							return Status(StatusCode::UNIMPLEMENTED,
-														grpc::string("ONCE mode not implemented yet"));
-							break;
-						}
-					case SubscriptionList_Mode_POLL:
-						{
-							std::cout << "Received a POLL SubscribeRequest" << std::endl;
-							return Status(StatusCode::UNIMPLEMENTED,
-														grpc::string("POLL mode not implemented yet"));
-							break;
-						}
-					default:
-						return Status(StatusCode::UNIMPLEMENTED,
-													grpc::string("Unkown mode"));
-				}
-			}
+            }
+          case SubscriptionList_Mode_ONCE:
+            {
+              /* TODO: Same as above but no need for a thread to handle it */
+              std::cout << "Received a ONCE SubscribeRequest" << std::endl;
+              return Status(StatusCode::UNIMPLEMENTED,
+                            grpc::string("ONCE mode not implemented yet"));
+              break;
+            }
+          case SubscriptionList_Mode_POLL:
+            {
+              std::cout << "Received a POLL SubscribeRequest" << std::endl;
+              return Status(StatusCode::UNIMPLEMENTED,
+                            grpc::string("POLL mode not implemented yet"));
+              break;
+            }
+          default:
+            return Status(StatusCode::UNIMPLEMENTED,
+                          grpc::string("Unkown mode"));
+        }
+      }
 
-			return Status::OK;
-		}
+      return Status::OK;
+    }
 };
 
 void RunServer()
 {
-	std::string server_address("0.0.0.0:50051");
-	GNMIServer service;
-	ServerBuilder builder;
-	builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-	builder.RegisterService(&service);
-	std::unique_ptr<Server> server(builder.BuildAndStart());
-	std::cout << "Server listening on " << server_address << std::endl;
-	server->Wait();
+  std::string server_address("0.0.0.0:50051");
+  GNMIServer service;
+  ServerBuilder builder;
+  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+  builder.RegisterService(&service);
+  std::unique_ptr<Server> server(builder.BuildAndStart());
+  std::cout << "Server listening on " << server_address << std::endl;
+  server->Wait();
+}
+
+static void show_usage(std::string name)
+{
+  std::cerr << "Usage: " << name << " <option(s)>\n"
+    << "Options:\n"
+    << "\t-h,--help\tShow this help message\n"
+    << "\t-t,--tls \tUse TLS encryption communicationis"
+    << std::endl;
 }
 
 int main (int argc, char* argv[]) {
-	RunServer();
+  int c;
+  int option_index = 0;
+
+  static struct option long_options[] =
+  {
+    {"help", no_argument, 0, 'h'},
+    {"tls", no_argument, 0, 't'},
+    {0, 0, 0, 0}
+  };
+
+  while ((c = getopt_long(argc, argv, "h:t", long_options, &option_index)) != -1) {
+    switch (c)
+    {
+      case 'h':
+        show_usage(argv[0]);
+        exit(0);
+      case 't':
+        std::cout << "tls option set" << std::endl;
+        break;
+      default:
+        std::cout << "OUPS" <<std::endl;
+    }
+  }
+
+  RunServer();
 }

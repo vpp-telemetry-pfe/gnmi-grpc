@@ -12,8 +12,8 @@ The idea is to use pipeline-gnmi data collector to create telemetry subscription
 
 ## Requirements
 
-grpc version > 1.9.x
-protobuf >= 3.0 & compatible with gRPC
+* grpc version > 1.9.x
+* protobuf >= 3.0 & compatible with gRPC
 
 ## With docker
 
