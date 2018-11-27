@@ -5,14 +5,15 @@
 #include <chrono>
 #include <pthread.h>
 #include <getopt.h>
-#include <google/protobuf/repeated_field.h>
 
 #include <grpc/grpc.h>
 #include <grpcpp/server.h>
 #include <grpcpp/server_builder.h>
+#include <google/protobuf/repeated_field.h>
 
 #include "../proto/gnmi.grpc.pb.h"
 #include "gnmi_encode.h"
+#include "gnmi_security.h"
 
 using grpc::Status;
 using grpc::StatusCode;
@@ -138,7 +139,7 @@ class GNMIServer final : public gNMI::Service
       SubscribeRequest request;
       SubscribeResponse response;
 
-      /* TODO Retrieve Server Context metadata */
+      /* TODO Authentication : Retrieve Server Context metadata */
       std::multimap<grpc::string_ref, grpc::string_ref> metadata;
       metadata = context->client_metadata();
 
@@ -147,7 +148,7 @@ class GNMIServer final : public gNMI::Service
            ++iter ) {
         cout << iter->first << '\t' << iter->second << '\n';
       }
-      /* TODO: End Of TODO */
+      /* End Of TODO */
 
       // This only handles the case of a new RPC yet
       while (stream->Read(&request)) {
@@ -217,10 +218,16 @@ void RunServer()
   std::string server_address("0.0.0.0:50051");
   GNMIServer service;
   ServerBuilder builder;
+
+  /* Server authentication SSL/TLS */
+
+
   builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
   builder.RegisterService(&service);
   std::unique_ptr<Server> server(builder.BuildAndStart());
+
   std::cout << "Server listening on " << server_address << std::endl;
+
   server->Wait();
 }
 
@@ -228,10 +235,11 @@ static void show_usage(std::string name)
 {
   std::cerr << "Usage: " << name << " <option(s)>\n"
     << "Options:\n"
-    << "\t-h,--help\tShow this help message\n"
-    << "\t-u,--username USERNAME\tDefine connection username\n"
-    << "\t-p,--password PASSWORD\tDefine connection password\n"
-    << "\t-t,--tls \tUse TLS encryption communication"
+    << "\t-h,--help\t\t\tShow this help message\n"
+    << "\t-u,--username<USERNAME>\t\tDefine connection username\n"
+    << "\t-p,--password<PASSWORD>\t\tDefine connection password\n"
+    << "\t--private-key<PRIVATE_KEY>\tpath to server PEM private key\n"
+    << "\t--cert-chain<CERT_CHAIN>\tpath to server PEM certificate chain"
     << std::endl;
 }
 
@@ -239,13 +247,15 @@ int main (int argc, char* argv[]) {
   int c;
   int option_index = 0;
   extern char * optarg;
+  const int tls_key_id = 1000, tls_chain_id = 1001;
 
   static struct option long_options[] =
   {
     {"help", no_argument, 0, 'h'},
     {"username", required_argument, 0, 'u'},
     {"password", required_argument, 0, 'p'},
-    {"tls", no_argument, 0, 't'},
+    {"private-key", required_argument, 0, tls_key_id}, //private key
+    {"cert-chain", required_argument, 0, tls_chain_id}, //certificate chain
     {0, 0, 0, 0}
   };
 
@@ -283,13 +293,30 @@ int main (int argc, char* argv[]) {
           }
           break;
         }
-      case 't':
-        std::cout << "tls option set" << std::endl;
+      case tls_key_id:
+        if (optarg) {
+            std::string private_key = string(optarg);
+            std::cout << "tls private key:" << private_key << std::endl;
+        } else {
+            std::cerr << "Please specify a string with private key path\n"
+              << "Ex: --private-keyKEY_PATH" << std::endl;
+            exit(1);
+        }
+        break;
+      case tls_chain_id:
+        if (optarg) {
+            std::string chain_certs = string(optarg);
+            std::cout << "tls chain certs:" << chain_certs << std::endl;
+        } else {
+            std::cerr << "Please specify a string with chain certs path\n"
+              << "Ex: --cert-chainCERTS_PATH" << std::endl;
+            exit(1);
+        }
+        break;
       default:
         {
           show_usage(argv[0]);
-          exit(0);
-          break;
+          exit(1);
         }
     }
   }
