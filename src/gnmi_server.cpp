@@ -245,10 +245,10 @@ struct auth_t auth;
 int main (int argc, char* argv[]) {
   int c;
   extern char *optarg;
-  int option_index = 0, tls = 0;
   std::string key, certs;
-  ServerSecurityContext *cxt = new ServerSecurityContext();
+  int option_index = 0, tls = 0;
   const int tls_key_id = 1000, tls_chain_id = 1001;
+  ServerSecurityContext *cxt = new ServerSecurityContext();
 
   static struct option long_options[] =
   {
@@ -312,13 +312,16 @@ int main (int argc, char* argv[]) {
       case '?':
         show_usage(argv[0]);
         exit(1);
-      default:
-        /* You won't get there */
+      default: /* You won't get there */
         exit(1);
     }
   }
 
   if (tls) {
+    if (key.empty() || certs.empty()) {
+      std::cerr << "Both private key and certificate required" << std::endl;
+      exit(1);
+    }
     std::cout << "Initiate a TLS connection with certificate " << certs
       << " and key " << key << std::endl;
     cxt->setTlsEncryptType(certs, key);
