@@ -49,13 +49,8 @@ using google::protobuf::RepeatedPtrField;
 
 using namespace std::chrono;
 
-struct streamRequest {
-  shared_ptr<SubscribeRequest> request;
-  shared_ptr<ServerReaderWriter<SubscribeResponse, SubscribeRequest>> stream;
-};
-
 void buildNotification( // Const arguments ?
-    shared_ptr<SubscribeRequest> request, SubscribeResponse& response)
+    const SubscribeRequest& request, SubscribeResponse& response)
 {
   Notification *notification = response.mutable_update();
   milliseconds ts;
@@ -66,16 +61,16 @@ void buildNotification( // Const arguments ?
   notification->set_timestamp(ts.count());
 
   // Prefix for all counter paths
-  if (request->subscribe().has_prefix()) {
+  if (request.subscribe().has_prefix()) {
     Path* prefix = notification->mutable_prefix();
-    prefix->set_target(request->subscribe().prefix().target());
+    prefix->set_target(request.subscribe().prefix().target());
   }
 
   // TODO : Notification.alias
 
   // repeated Notification.update
-  for (int i=0; i<request->subscribe().subscription_size(); i++) {
-    Subscription sub = request->subscribe().subscription(i);
+  for (int i=0; i<request.subscribe().subscription_size(); i++) {
+    Subscription sub = request.subscribe().subscription(i);
     RepeatedPtrField<Update>* updateL = 
       notification->mutable_update();
     Update* update = updateL->Add();
@@ -99,54 +94,6 @@ void buildNotification( // Const arguments ?
 
   // Notification.atomic
   notification->set_atomic(false);
-}
-
-void* streamRoutine(void* threadarg)
-{
-  std::cout << "Thread launched" << std::endl;
-  streamRequest* streamReq = static_cast<struct streamRequest*>(threadarg);
-  if (streamReq == NULL) {
-    pthread_exit(NULL);
-  }
-  std::cout << streamReq->request->DebugString() << std::endl;
-
-  // Creates the map that links SAMPLE subscriptions to their respective chrono
-  std::vector<std::pair<Subscription, time_point<system_clock>>> chronomap;
-  for (int i=0; i<streamReq->request->subscribe().subscription_size(); i++) {
-    Subscription sub = streamReq->request->subscribe().subscription(i);
-    switch (sub.mode()) {
-      case SAMPLE:
-      {
-        chronomap.emplace_back(sub, system_clock::now());
-        break;
-      }
-      default:
-      { 
-        // TODO: Handle ON_CHANGE and TARGET_DEFINED modes
-        break;
-      }
-    }
-  }
-
-  // Main loop that checks every chrono of the map, capped at 5 loops / second
-  while(true) { // TODO: Change this condition
-    auto start = system_clock::now();
-    // Iterate through chronomap, send messages if needed and reset chronos
-    for (auto it = chronomap.begin(); it != chronomap.end(); it++) {
-      if (system_clock::now() - it->second >
-          milliseconds(it->first.sample_interval()*1000))
-      {
-        SubscribeResponse response;
-        buildNotification(streamReq->request, response);
-        streamReq->stream->Write(response);
-        it->second = system_clock::now();
-      }
-    }
-    duration<double> duration = system_clock::now() - start;
-    std::this_thread::sleep_for(milliseconds(200) - duration);
-  }
-
-  pthread_exit(NULL);
 }
 
 class GNMIServer final : public gNMI::Service
@@ -196,34 +143,67 @@ class GNMIServer final : public gNMI::Service
 					case SubscriptionList_Mode_STREAM:
 						{
 							std::cout << "Received a STREAM SubscribeRequest" << std::endl;
-
-							buildNotification(
-							    std::make_shared<SubscribeRequest>(request), response);
+              std::cout << request.DebugString() << std::endl;
 
 							// Send first message: notification message
+							buildNotification(request, response);
+              std::cout << "Sending the first update" << std::endl;
 							std::cout << response.DebugString() << std::endl;
 							stream->Write(response);
-							response.clear_update();
+							response.clear_response();
 
 							// Send second message: sync message
 							response.set_sync_response(true);
+              std::cout << "Sending sync response" << std::endl;
 							std::cout << response.DebugString() << std::endl;
 							stream->Write(response);
-							response.clear_update();
+							response.clear_response();
 
-              // Launch dedicated thread to keep streaming updates
-              streamRequest streamRequest = {
-                .request = std::make_shared<SubscribeRequest>(request),
-                .stream = std::make_shared<ServerReaderWriter<
-                  SubscribeResponse, SubscribeRequest>>(*stream)
-              };
-							pthread_t thread;
-							if (pthread_create(
-							      &thread, NULL, streamRoutine, (void *) &streamRequest)) {
-                std::cout << "Error launching thread" << std::endl;
+              // Creates the map that links SAMPLE subscriptions to their respective chrono
+              std::vector<std::pair<Subscription, time_point<system_clock>>> chronomap;
+              for (int i=0; i<request.subscribe().subscription_size(); i++) {
+                Subscription sub = request.subscribe().subscription(i);
+                switch (sub.mode()) {
+                  case SAMPLE:
+                  {
+                    chronomap.emplace_back(sub, system_clock::now());
+                    break;
+                  }
+                  default:
+                  { 
+                    // TODO: Handle ON_CHANGE and TARGET_DEFINED modes
+                    break;
+                  }
+                }
               }
-              pthread_join(thread, NULL);
-            break;
+
+              std::cout << "Chronomap created" << std::endl;
+
+              // Main loop that checks every chrono of the map
+              while(!context->IsCancelled()) {
+                auto start = high_resolution_clock::now();
+                // Iterate through chronomap
+                for (auto it = chronomap.begin(); it != chronomap.end(); it++) {
+                  unsigned long duration = duration_cast<nanoseconds>
+                    (high_resolution_clock::now() - it->second).count();
+                  if (duration > it->first.sample_interval())
+                  {
+                    // If needed, send update and reset chrono
+                    std::cout << "Sending sampled update" << std::endl;
+                    buildNotification(request, response);
+							      std::cout << response.DebugString() << std::endl;
+                    stream->Write(response);
+                    response.clear_response();
+                    it->second = high_resolution_clock::now();
+                  }
+                }
+                // Caps the loop at 5 iterations / second
+                auto loopTime = high_resolution_clock::now() - start;
+                std::this_thread::sleep_for(milliseconds(200) - loopTime);
+              }
+
+              std::cout << "Subscribe RPC call CANCELLED" << std::endl;
+              break;
 						}
 					case SubscriptionList_Mode_ONCE:
 						{
