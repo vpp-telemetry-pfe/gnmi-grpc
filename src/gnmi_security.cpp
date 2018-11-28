@@ -24,29 +24,22 @@ std::string GetFileContent(std::string path)
   return content;
 }
 
-/** GetServerCredentials - Get Server Credentials according to requested type.
- * @param type Type of credentials : TLS or Insecure
- * @return
- */
-std::shared_ptr<ServerCredentials> GetServerCredentials(
-    const grpc::string& type)
+std::shared_ptr<ServerCredentials> TlsEncrypt::GetServerCredentials()
 {
-  if (type == InsecureCredentialsType) {
-    return grpc::InsecureServerCredentials();
-  } else if (type == TlsCredentialsType) {
-    SslServerCredentialsOptions ssl_opts;
+  SslServerCredentialsOptions ssl_opts;
 
-    SslServerCredentialsOptions::PemKeyCertPair pkcp = {
-      GetFileContent(encrypt.private_key),
-      GetFileContent(encrypt.chain_certs)
-    };
+  SslServerCredentialsOptions::PemKeyCertPair pkcp = {
+    GetFileContent(private_key_path),
+    GetFileContent(chain_certs_path)
+  };
 
-    ssl_opts.pem_root_certs = "";
-    ssl_opts.pem_key_cert_pairs.push_back(pkcp);
+  ssl_opts.pem_root_certs = "";
+  ssl_opts.pem_key_cert_pairs.push_back(pkcp);
 
-    return SslServerCredentials(ssl_opts);
-  } else {
-    //TODO
-    return grpc::InsecureServerCredentials();
-  }
+  return SslServerCredentials(ssl_opts);
+}
+
+std::shared_ptr<ServerCredentials> InsecureEncrypt::GetServerCredentials()
+{
+  return grpc::InsecureServerCredentials();
 }

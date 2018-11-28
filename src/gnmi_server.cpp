@@ -213,14 +213,13 @@ class GNMIServer final : public gNMI::Service
     }
 };
 
-void RunServer()
+void RunServer(ServerEncrypt *encrypt)
 {
   std::string server_address("0.0.0.0:50051");
   GNMIServer service;
   ServerBuilder builder;
 
-  builder.AddListeningPort(server_address,
-    GetServerCredentials(TlsCredentialsType));
+  builder.AddListeningPort(server_address, encrypt->GetServerCredentials());
   builder.RegisterService(&service);
   std::unique_ptr<Server> server(builder.BuildAndStart());
 
@@ -242,13 +241,13 @@ static void show_usage(std::string name)
 }
 
 struct auth_t auth;
-struct encrypt_t encrypt;
 
 int main (int argc, char* argv[]) {
   int c;
   int option_index = 0;
   extern char * optarg;
   const int tls_key_id = 1000, tls_chain_id = 1001;
+  TlsEncrypt *encrypt = new TlsEncrypt;
 
   static struct option long_options[] =
   {
@@ -290,8 +289,8 @@ int main (int argc, char* argv[]) {
           break;
       case tls_key_id:
         if (optarg) {
-            encrypt.private_key = string(optarg);
-            std::cout << "tls private key:" << encrypt.private_key << std::endl;
+            encrypt->setPrivateKeyP(string(optarg));
+            std::cout << "tls private key:" << encrypt->getPrivateKeyP() << std::endl;
         } else {
             std::cerr << "Please specify a string with private key path\n"
               << "Ex: --private-keyKEY_PATH" << std::endl;
@@ -300,8 +299,8 @@ int main (int argc, char* argv[]) {
         break;
       case tls_chain_id:
         if (optarg) {
-            encrypt.chain_certs = string(optarg);
-            std::cout << "tls chain certs:" << encrypt.chain_certs << std::endl;
+            encrypt->setChainCertsP(string(optarg));
+            std::cout << "tls chain certs:" << encrypt->getChainCertsP() << std::endl;
         } else {
             std::cerr << "Please specify a string with chain certs path\n"
               << "Ex: --cert-chainCERTS_PATH" << std::endl;
@@ -317,5 +316,5 @@ int main (int argc, char* argv[]) {
     }
   }
 
-  RunServer();
+  RunServer((ServerEncrypt *) encrypt);
 }
