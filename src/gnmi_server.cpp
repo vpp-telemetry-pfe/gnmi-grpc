@@ -213,13 +213,13 @@ class GNMIServer final : public gNMI::Service
     }
 };
 
-void RunServer(ServerEncrypt *encrypt)
+void RunServer(ServerSecurityContext *cxt)
 {
   std::string server_address("0.0.0.0:50051");
   GNMIServer service;
   ServerBuilder builder;
 
-  builder.AddListeningPort(server_address, encrypt->GetServerCredentials());
+  builder.AddListeningPort(server_address, cxt->Credentials());
   builder.RegisterService(&service);
   std::unique_ptr<Server> server(builder.BuildAndStart());
 
@@ -244,10 +244,11 @@ struct auth_t auth;
 
 int main (int argc, char* argv[]) {
   int c;
-  int option_index = 0;
-  extern char * optarg;
+  extern char *optarg;
+  int option_index = 0, tls = 0;
+  std::string key, certs;
+  ServerSecurityContext *cxt = new ServerSecurityContext();
   const int tls_key_id = 1000, tls_chain_id = 1001;
-  TlsEncrypt *encrypt = new TlsEncrypt;
 
   static struct option long_options[] =
   {
@@ -259,62 +260,74 @@ int main (int argc, char* argv[]) {
     {0, 0, 0, 0}
   };
 
-  /* "a::b:c:" means a is optional, b & c are mandatory */
-  while ((c = getopt_long(argc, argv, "hp::u::t", long_options, &option_index)) != -1) {
+  /* "a::b:c:" means: a is optional, b & c are mandatory */
+  while ((c = getopt_long(argc, argv, "hp::u::t", long_options, &option_index))
+         != -1) {
     switch (c)
     {
       case 'h':
-          show_usage(argv[0]);
-          exit(0);
-          break;
+        show_usage(argv[0]);
+        exit(0);
+        break;
       case 'u':
-          if (optarg) {
-            auth.username = string(optarg);
-            std::cout << "username: " << auth.username << std::endl;
-          } else {
-            std::cerr << "Please specify a string with username option\n"
-              << "Ex: -uUSERNAME" << std::endl;
-            exit(1);
-          }
-          break;
-      case 'p':
-          if (optarg) {
-            auth.password = string(optarg);
-            std::cout << "password: " << auth.password << std::endl;
-          } else {
-            std::cerr << "Please specify a string with password option\n"
-              << "Ex: -pPASSWORD" << std::endl;
-            exit(1);
-          }
-          break;
-      case tls_key_id:
         if (optarg) {
-            encrypt->setPrivateKeyP(string(optarg));
-            std::cout << "tls private key:" << encrypt->getPrivateKeyP() << std::endl;
+          auth.username = string(optarg);
+          std::cout << "username: " << auth.username << std::endl;
         } else {
-            std::cerr << "Please specify a string with private key path\n"
-              << "Ex: --private-keyKEY_PATH" << std::endl;
-            exit(1);
+          std::cerr << "Please specify a string with username option\n"
+            << "Ex: -uUSERNAME" << std::endl;
+          exit(1);
+        }
+        break;
+      case 'p':
+        if (optarg) {
+          auth.password = string(optarg);
+          std::cout << "password: " << auth.password << std::endl;
+        } else {
+          std::cerr << "Please specify a string with password option\n"
+            << "Ex: -pPASSWORD" << std::endl;
+          exit(1);
+        }
+        break;
+      case tls_key_id:
+        tls = 1;
+        if (optarg) {
+          key = string(optarg);
+        } else {
+          std::cerr << "Please specify a string with private key path\n"
+            << "Ex: --private-keyKEY_PATH" << std::endl;
+          exit(1);
         }
         break;
       case tls_chain_id:
+        tls = 1;
         if (optarg) {
-            encrypt->setChainCertsP(string(optarg));
-            std::cout << "tls chain certs:" << encrypt->getChainCertsP() << std::endl;
+          certs = string(optarg);
         } else {
-            std::cerr << "Please specify a string with chain certs path\n"
-              << "Ex: --cert-chainCERTS_PATH" << std::endl;
-            exit(1);
+          std::cerr << "Please specify a string with chain certs path\n"
+            << "Ex: --cert-chainCERTS_PATH" << std::endl;
+          exit(1);
         }
         break;
       case '?':
         show_usage(argv[0]);
-        break;
+        exit(1);
       default:
         /* You won't get there */
         exit(1);
     }
   }
 
-  RunServer((ServerEncrypt *) encrypt);
+  if (tls) {
+    std::cout << "Initiate a TLS connection with certificate " << certs
+      << " and key " << key << std::endl;
+    cxt->setTlsEncryptType(certs, key);
+  } else {
+    std::cout << "Initiate an insecure connection" << std::endl;
+    cxt->setInsecureEncryptType();
+  }
+
+  RunServer(cxt);
+
+  return 0;
 }

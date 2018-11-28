@@ -14,29 +14,48 @@ struct auth_t {
 extern struct auth_t auth;
 
 /*
- * Abstract class.
+ * Implement Strategy Design Pattern
+ * ServerSecurityContext -
+ * TypeEncrypt -
+ *  TlsEncrypt -
+ *  InsecureEncrypt -
  */
-class ServerEncrypt {
+
+class TypeEncrypt;
+
+/* Provide necessary set of functions for encryption */
+class ServerSecurityContext {
+  private:
+    TypeEncrypt *type_;
+
+  public:
+    void setInsecureEncryptType();
+    void setTlsEncryptType(std::string cert, std::string key);
+    std::shared_ptr<ServerCredentials> Credentials();
+};
+
+/* Set an encryption type */
+class TypeEncrypt {
   public:
     virtual std::shared_ptr<ServerCredentials> GetServerCredentials() = 0;
 };
 
 /* TLS Credentials */
-class TlsEncrypt : public ServerEncrypt {
+class TlsEncrypt : public TypeEncrypt {
   private:
-    std::string private_key_path; // PEM server certificate chain
     std::string chain_certs_path; // PEM path for server private key
+    std::string private_key_path; // PEM server certificate chain
 
   public:
-    void setPrivateKeyP(std::string path) { private_key_path = path;}
-    void setChainCertsP(std::string path) { chain_certs_path = path;}
-    std::string getPrivateKeyP() { return private_key_path;}
-    std::string getChainCertsP() { return chain_certs_path;}
+    TlsEncrypt() {};
+    TlsEncrypt(std::string certs, std::string key)
+      : chain_certs_path(certs), private_key_path(key) {};
     std::shared_ptr<ServerCredentials> GetServerCredentials() override;
+    void setCredentialsPath();
 };
 
 /* Insecure Credentials */
-class InsecureEncrypt : public ServerEncrypt {
+class InsecureEncrypt : public TypeEncrypt {
   public:
     std::shared_ptr<ServerCredentials> GetServerCredentials() override;
 };
