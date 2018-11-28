@@ -3,7 +3,10 @@
 #include <iostream>
 #include <memory>
 #include <chrono>
+#include <thread> //std::this_thread::sleep_for
+
 #include <pthread.h>
+#include <unistd.h>
 #include <google/protobuf/repeated_field.h>
 
 #include <grpc/grpc.h>
@@ -46,8 +49,13 @@ using google::protobuf::RepeatedPtrField;
 
 using namespace std::chrono;
 
-void BuildNotification(
-    const SubscribeRequest& request, SubscribeResponse& response)
+struct streamRequest {
+  shared_ptr<SubscribeRequest> request;
+  shared_ptr<ServerReaderWriter<SubscribeResponse, SubscribeRequest>> stream;
+};
+
+void buildNotification( // Const arguments ?
+    shared_ptr<SubscribeRequest> request, SubscribeResponse& response)
 {
   Notification *notification = response.mutable_update();
   milliseconds ts;
@@ -58,19 +66,20 @@ void BuildNotification(
   notification->set_timestamp(ts.count());
 
   // Prefix for all counter paths
-  if (request.subscribe().has_prefix()) {
+  if (request->subscribe().has_prefix()) {
     Path* prefix = notification->mutable_prefix();
-    prefix->set_target(request.subscribe().prefix().target());
+    prefix->set_target(request->subscribe().prefix().target());
   }
 
   // TODO : Notification.alias
 
   // repeated Notification.update
-  for (int i=0; i<request.subscribe().subscription_size(); i++) {
-    Subscription sub = request.subscribe().subscription(i);
+  for (int i=0; i<request->subscribe().subscription_size(); i++) {
+    Subscription sub = request->subscribe().subscription(i);
     RepeatedPtrField<Update>* updateL = 
       notification->mutable_update();
     Update* update = updateL->Add();
+
     /* If a directory path has been provided in the request, we must
     * get all the leaves of the file tree. */
     Path* path = update->mutable_path();
@@ -78,8 +87,11 @@ void BuildNotification(
     /* UnixtoGnmiPath("/err/vmxnet3-input/Rx no buffer error", path);
     PathElem* pathElem = path->add_elem();
     pathElem->set_name("path_elem_name"); */
+
+    // TODO: Fetch the value from the stat_api instead of hardcoding one
     TypedValue* val = update->mutable_val();
     val->set_string_val("Test message number " + std::to_string(i));
+
     update->set_duplicates(0);
   }
 
@@ -89,20 +101,51 @@ void BuildNotification(
   notification->set_atomic(false);
 }
 
-void* StreamRoutine(void* threadarg)
+void* streamRoutine(void* threadarg)
 {
   std::cout << "Thread launched" << std::endl;
-  SubscribeRequest* request = (SubscribeRequest*) threadarg;
-  std::cout << request->DebugString() << std::endl;
-  // TODO: Handle the different STREAM SubscriptionModes
-  /*
-  switch (sub.mode()) {
-    case TARGET_DEFINED: { break; }
-    case ON_CHANGE: { break; }
-    case SAMPLE: { break; }
-    default: { break; }
+  streamRequest* streamReq = static_cast<struct streamRequest*>(threadarg);
+  if (streamReq == NULL) {
+    pthread_exit(NULL);
   }
-  */
+  std::cout << streamReq->request->DebugString() << std::endl;
+
+  // Creates the map that links SAMPLE subscriptions to their respective chrono
+  std::vector<std::pair<Subscription, time_point<system_clock>>> chronomap;
+  for (int i=0; i<streamReq->request->subscribe().subscription_size(); i++) {
+    Subscription sub = streamReq->request->subscribe().subscription(i);
+    switch (sub.mode()) {
+      case SAMPLE:
+      {
+        chronomap.emplace_back(sub, system_clock::now());
+        break;
+      }
+      default:
+      { 
+        // TODO: Handle ON_CHANGE and TARGET_DEFINED modes
+        break;
+      }
+    }
+  }
+
+  // Main loop that checks every chrono of the map, capped at 5 loops / second
+  while(true) { // TODO: Change this condition
+    auto start = system_clock::now();
+    // Iterate through chronomap, send messages if needed and reset chronos
+    for (auto it = chronomap.begin(); it != chronomap.end(); it++) {
+      if (system_clock::now() - it->second >
+          milliseconds(it->first.sample_interval()*1000))
+      {
+        SubscribeResponse response;
+        buildNotification(streamReq->request, response);
+        streamReq->stream->Write(response);
+        it->second = system_clock::now();
+      }
+    }
+    duration<double> duration = system_clock::now() - start;
+    std::this_thread::sleep_for(milliseconds(200) - duration);
+  }
+
   pthread_exit(NULL);
 }
 
@@ -154,24 +197,32 @@ class GNMIServer final : public gNMI::Service
 						{
 							std::cout << "Received a STREAM SubscribeRequest" << std::endl;
 
-							BuildNotification(request, response);
+							buildNotification(
+							    std::make_shared<SubscribeRequest>(request), response);
 
 							// Send first message: notification message
 							std::cout << response.DebugString() << std::endl;
 							stream->Write(response);
+							response.clear_update();
 
 							// Send second message: sync message
-							response.clear_update();
 							response.set_sync_response(true);
 							std::cout << response.DebugString() << std::endl;
 							stream->Write(response);
+							response.clear_update();
 
               // Launch dedicated thread to keep streaming updates
+              streamRequest streamRequest = {
+                .request = std::make_shared<SubscribeRequest>(request),
+                .stream = std::make_shared<ServerReaderWriter<
+                  SubscribeResponse, SubscribeRequest>>(*stream)
+              };
 							pthread_t thread;
 							if (pthread_create(
-							      &thread, NULL, StreamRoutine, (void *) &request)) {
+							      &thread, NULL, streamRoutine, (void *) &streamRequest)) {
                 std::cout << "Error launching thread" << std::endl;
               }
+              pthread_join(thread, NULL);
             break;
 						}
 					case SubscriptionList_Mode_ONCE:
@@ -194,12 +245,11 @@ class GNMIServer final : public gNMI::Service
 													grpc::string("Unkown mode"));
 				}
 			}
-
 			return Status::OK;
 		}
 };
 
-void RunServer()
+void runServer()
 {
 	std::string server_address("0.0.0.0:50051");
 	GNMIServer service;
@@ -212,5 +262,5 @@ void RunServer()
 }
 
 int main (int argc, char* argv[]) {
-	RunServer();
+	runServer();
 }
