@@ -49,7 +49,7 @@ using google::protobuf::RepeatedPtrField;
 
 using namespace std::chrono;
 
-void buildNotification( // Const arguments ?
+void buildNotification(
     const SubscribeRequest& request, SubscribeResponse& response)
 {
   Notification *notification = response.mutable_update();
@@ -71,19 +71,14 @@ void buildNotification( // Const arguments ?
   // repeated Notification.update
   for (int i=0; i<request.subscribe().subscription_size(); i++) {
     Subscription sub = request.subscribe().subscription(i);
-    RepeatedPtrField<Update>* updateL = 
+    RepeatedPtrField<Update>* updateList = 
       notification->mutable_update();
-    Update* update = updateL->Add();
+    Update* update = updateList->Add();
 
-    /* If a directory path has been provided in the request, we must
-    * get all the leaves of the file tree. */
     Path* path = update->mutable_path();
     path->CopyFrom(sub.path());
-    /* UnixtoGnmiPath("/err/vmxnet3-input/Rx no buffer error", path);
-    PathElem* pathElem = path->add_elem();
-    pathElem->set_name("path_elem_name"); */
 
-    // TODO: Fetch the value from the stat_api instead of hardcoding one
+    // TODO: Fetch the value from the stat_api instead of hardcoding a fake one
     TypedValue* val = update->mutable_val();
     val->set_string_val("Test message number " + std::to_string(i));
 
@@ -182,22 +177,29 @@ class GNMIServer final : public gNMI::Service
               // Main loop that checks every chrono of the map
               while(!context->IsCancelled()) {
                 auto start = high_resolution_clock::now();
-                // Iterate through chronomap
-                for (auto it = chronomap.begin(); it != chronomap.end(); it++) {
+                SubscribeRequest updateRequest(request);
+                auto updateList = updateRequest.subscribe().subscription();
+
+                for (int i = 0; i<request.subscribe().subscription_size(); i++) {
                   unsigned long duration = duration_cast<nanoseconds>
-                    (high_resolution_clock::now() - it->second).count();
-                  if (duration > it->first.sample_interval())
-                  {
-                    // If needed, send update and reset chrono
-                    std::cout << "Sending sampled update" << std::endl;
-                    buildNotification(request, response);
-							      std::cout << response.DebugString() << std::endl;
-                    stream->Write(response);
-                    response.clear_response();
-                    it->second = high_resolution_clock::now();
+                    (high_resolution_clock::now() - chronomap[i].second).count();
+                  if (duration > chronomap[i].first.sample_interval()) {
+                    // If an update is needed, reset the corresponding chrono
+                    chronomap[i].second = high_resolution_clock::now();
+                  } else {
+                    // Else, remove from the update list
+                    updateList.DeleteSubrange(i, 1);
                   }
                 }
-                // Caps the loop at 5 iterations / second
+                // TODO: Send the update now, only with Paths that need an update
+                if (updateList.size() > 0) {
+                  buildNotification(updateRequest, response);
+                  std::cout << "Sending sampled update" << std::endl;
+                  std::cout << response.DebugString() << std::endl;
+                  stream->Write(response);
+                  response.clear_response();
+                }
+                // Caps the loop at 5 iterations per second
                 auto loopTime = high_resolution_clock::now() - start;
                 std::this_thread::sleep_for(milliseconds(200) - loopTime);
               }
