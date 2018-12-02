@@ -9,7 +9,16 @@
 
 #include "gnmi_encode.h"
 
-/* split - split string in substrings according to delimitor */
+using namespace gnmi;
+using namespace std;
+using namespace chrono;
+using google::protobuf::RepeatedPtrField;
+
+/**
+ * split - split string in substrings according to delimitor.
+ * @param str the string to parse.
+ * @param delim the dilimitation character.
+ */
 vector<string> split( const string &str, const char &delim )
 {
 	typedef string::const_iterator iter;
@@ -28,7 +37,8 @@ vector<string> split( const string &str, const char &delim )
 	return tokens;
 }
 
-/* UnixtoGnmiPath - Convert a Unix Path to a GNMI Path
+/** 
+ * UnixtoGnmiPath - Convert a Unix Path to a GNMI Path.
  * @param unixp Unix path.
  * @param path Pointer to GNMI path.
  */
@@ -39,8 +49,53 @@ void UnixtoGnmiPath(string unixp, Path* path)
 	for (auto const& entry : entries) {
 		PathElem *pathElem = path->add_elem();
 		pathElem->set_name(entry);
-		std::cout << entry << std::endl;
+		cout << entry << endl;
 	}
+}
+
+/**
+ * BuildNotification - build a Notification message to answer a SubscribeRequest.
+ * @param request the SubscribeRequest to answer to.
+ * @param response the SubscribeResponse that is constructed by this function.
+ */
+void BuildNotification(
+    const SubscribeRequest& request, SubscribeResponse& response)
+{
+  Notification *notification = response.mutable_update();
+
+  milliseconds ts;
+  ts = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
+  notification->set_timestamp(ts.count());
+
+  // Notification.prefix
+  if (request.subscribe().has_prefix()) {
+    Path* prefix = notification->mutable_prefix();
+    prefix->set_target(request.subscribe().prefix().target());
+  }
+
+  // TODO : Notification.alias
+
+  // repeated Notification.update
+  for (int i=0; i<request.subscribe().subscription_size(); i++) {
+    Subscription sub = request.subscribe().subscription(i);
+    RepeatedPtrField<Update>* updateList = 
+      notification->mutable_update();
+    Update* update = updateList->Add();
+
+    Path* path = update->mutable_path();
+    path->CopyFrom(sub.path());
+
+    // TODO: Fetch the value from the stat_api instead of hardcoding a fake one
+    TypedValue* val = update->mutable_val();
+    val->set_string_val("Test message number " + to_string(i));
+
+    update->set_duplicates(0);
+  }
+
+  // TODO: Notification.delete
+
+  // Notification.atomic
+  notification->set_atomic(false);
 }
 
 /**
