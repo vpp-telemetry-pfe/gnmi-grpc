@@ -2,9 +2,11 @@
 /*  vim:set softtabstop=2 shiftwidth=2 tabstop=2 expandtab: */
 
 #include <grpcpp/security/server_credentials.h>
+#include <grpcpp/security/auth_metadata_processor.h>
 
 using grpc::ServerCredentials;
 using grpc::SslServerCredentialsOptions;
+using grpc::Status;
 
 struct auth_t {
   std::string username;
@@ -58,4 +60,14 @@ class TlsEncrypt : public TypeEncrypt {
 class InsecureEncrypt : public TypeEncrypt {
   public:
     std::shared_ptr<ServerCredentials> GetServerCredentials() override;
+};
+
+/* User/Password Authentication */
+class UserPassAuthProcessor : public grpc::AuthMetadataProcessor {
+  public:
+  Status Process(const InputMetadata& auth_metadata,
+                 grpc::AuthContext* context,
+                 OutputMetadata* consumed_auth_metadata,
+                 OutputMetadata* response_metadata) override;
+
 };

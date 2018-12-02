@@ -26,7 +26,11 @@ std::string GetFileContent(std::string path)
 
 std::shared_ptr<ServerCredentials> TlsEncrypt::GetServerCredentials()
 {
-  SslServerCredentialsOptions ssl_opts;
+  std::shared_ptr<UserPassAuthProcessor> processor =
+    std::shared_ptr<UserPassAuthProcessor>(new UserPassAuthProcessor());
+  std::shared_ptr<grpc::ServerCredentials> creds;
+  SslServerCredentialsOptions
+    ssl_opts(GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY);
 
   SslServerCredentialsOptions::PemKeyCertPair pkcp = {
     GetFileContent(private_key_path),
@@ -36,7 +40,10 @@ std::shared_ptr<ServerCredentials> TlsEncrypt::GetServerCredentials()
   ssl_opts.pem_root_certs = "";
   ssl_opts.pem_key_cert_pairs.push_back(pkcp);
 
-  return SslServerCredentials(ssl_opts);
+  creds = grpc::SslServerCredentials(ssl_opts);
+  creds->SetAuthMetadataProcessor(processor);
+
+  return creds;
 }
 
 std::shared_ptr<ServerCredentials> InsecureEncrypt::GetServerCredentials()
@@ -57,4 +64,42 @@ void ServerSecurityContext::setTlsEncryptType(std::string cert, std::string key)
 std::shared_ptr<ServerCredentials> ServerSecurityContext::Credentials()
 {
   return type_->GetServerCredentials();
+}
+
+/* Implement a metadataProcessor for username/password authentication */
+Status UserPassAuthProcessor::Process(const InputMetadata& auth_metadata,
+                                      grpc::AuthContext* context,
+                                      OutputMetadata* consumed_auth_metadata,
+                                      OutputMetadata* response_metadata)
+{
+  /*
+   * context is read/write: it contains the properties of the channel peer and
+   * it is the job of the Process method to augment it with properties derived
+   * from the passed-in auth_metadata.
+   */
+  auto user_kv = auth_metadata.find("username");
+  if (user_kv == auth_metadata.end()) {
+    std::cerr << "Invalid Username/Password" << std::endl;
+    return grpc::Status(grpc::StatusCode::UNAUTHENTICATED,
+                        "No username field");
+  }
+
+  auto pass_kv = auth_metadata.find("password");
+  if (pass_kv == auth_metadata.end()) {
+    std::cerr << "Invalid Username/Password" << std::endl;
+    return grpc::Status(grpc::StatusCode::UNAUTHENTICATED,
+                        "No password field");
+  }
+
+  //TODO test if username and password are good
+
+  std::cout << "Processor" << '\n'
+            << '\t' << user_kv->first << '\t' << user_kv->second << '\n'
+            << '\t' << pass_kv->first << '\t' << pass_kv->second
+            << std::endl;
+
+  //consumed_auth_metadata->insert(std::make_pair("username", "lol"));
+  //consumed_auth_metadata->insert(std::make_pair("password", "lol"));
+
+  return grpc::Status::OK;
 }

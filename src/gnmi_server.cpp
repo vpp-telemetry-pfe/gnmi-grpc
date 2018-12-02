@@ -139,14 +139,15 @@ class GNMIServer final : public gNMI::Service
       SubscribeRequest request;
       SubscribeResponse response;
 
-      /* TODO Authentication : Retrieve Server Context metadata */
+      /* TODO Authentication : Acess client metadata */
       std::multimap<grpc::string_ref, grpc::string_ref> metadata;
       metadata = context->client_metadata();
 
+      std::cout << "Metadata" << std::endl;
       for (std::multimap<grpc::string_ref, grpc::string_ref>::const_iterator iter = metadata.begin();
            iter != metadata.end();
            ++iter ) {
-        cout << iter->first << '\t' << iter->second << '\n';
+        std::cout << '\t' << iter->first << '\t' << iter->second << '\n';
       }
       /* End Of TODO */
 
@@ -222,7 +223,6 @@ void RunServer(ServerSecurityContext *cxt)
   builder.AddListeningPort(server_address, cxt->Credentials());
   builder.RegisterService(&service);
   std::unique_ptr<Server> server(builder.BuildAndStart());
-
   std::cout << "Server listening on " << server_address << std::endl;
 
   server->Wait();
@@ -260,8 +260,9 @@ int main (int argc, char* argv[]) {
     {0, 0, 0, 0}
   };
 
-  /* "a::b:c:" means: a is optional, b & c are mandatory */
-  while ((c = getopt_long(argc, argv, "hp::u::t", long_options, &option_index))
+  /* "a::b:c:" means: a is optional, b & c are mandatory
+   * Here it is mandatory to provide a username and a password */
+  while ((c = getopt_long(argc, argv, "hp:u:t", long_options, &option_index))
          != -1) {
     switch (c)
     {

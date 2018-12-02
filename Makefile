@@ -28,7 +28,7 @@ gnmi_server: $(SRC)/gnmi_server.cpp $(proto_obj) $(SRC)/gnmi_encode.o $(SRC)/gnm
 	$(CXX) $^ $(CXXFLAGS) $(LDFLAGS) -o $(BUILD)/$@
 
 #Static pattern rule (targets: target-pattern: prereq-patterns)
-$(proto_obj): %.o: %.cc
+$(proto_obj): %.pb.o: %.pb.cc
 	$(info ****** Compile protobuf generated CPP files ******)
 	$(CXX) -c $(CXXFLAGS) $< -o $@
 
