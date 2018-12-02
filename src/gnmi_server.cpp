@@ -16,51 +16,21 @@
 #include "../proto/gnmi.grpc.pb.h"
 #include "gnmi_encode.h"
 
-using grpc::Status;
-using grpc::StatusCode;
-using grpc::Server;
-using grpc::ServerBuilder;
-using grpc::ServerContext;
-using grpc::ServerReaderWriter;
-using gnmi::gNMI;
-using gnmi::Error;
-using gnmi::Update;
-using gnmi::TypedValue;
-using gnmi::Path;
-using gnmi::PathElem;
-using gnmi::Notification;
-using gnmi::GetRequest;
-using gnmi::SetRequest;
-using gnmi::GetResponse;
-using gnmi::SetResponse;
-using gnmi::SubscribeRequest;
-using gnmi::SubscribeResponse;
-using gnmi::Subscription;
-using gnmi::SubscriptionList;
-using gnmi::CapabilityRequest;
-using gnmi::CapabilityResponse;
-using gnmi::SubscriptionList_Mode_ONCE;
-using gnmi::SubscriptionList_Mode_POLL;
-using gnmi::SubscriptionList_Mode_STREAM;
-using gnmi::SAMPLE;
-using gnmi::ON_CHANGE;
-using gnmi::TARGET_DEFINED;
-using google::protobuf::RepeatedPtrField;
-
+using namespace grpc;
+using namespace gnmi;
 using namespace std::chrono;
+using google::protobuf::RepeatedPtrField;
 
 void buildNotification(
     const SubscribeRequest& request, SubscribeResponse& response)
 {
   Notification *notification = response.mutable_update();
-  milliseconds ts;
 
-  /*  Get non-monotic timestamp since epoch in msecs when data is
-    *  generated */
+  milliseconds ts;
   ts = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
   notification->set_timestamp(ts.count());
 
-  // Prefix for all counter paths
+  // Notification.prefix
   if (request.subscribe().has_prefix()) {
     Path* prefix = notification->mutable_prefix();
     prefix->set_target(request.subscribe().prefix().target());
@@ -154,51 +124,50 @@ class GNMIServer final : public gNMI::Service
 							stream->Write(response);
 							response.clear_response();
 
-              // Creates the map that links SAMPLE subscriptions to their respective chrono
-              std::vector<std::pair<Subscription, time_point<system_clock>>> chronomap;
+							// Periodically updates paths that require SAMPLE update
+							
+              // Associates each subscription to a chrono within the chronomap
+              std::vector<std::pair
+                <Subscription, time_point<system_clock>>> chronomap;
               for (int i=0; i<request.subscribe().subscription_size(); i++) {
                 Subscription sub = request.subscribe().subscription(i);
                 switch (sub.mode()) {
                   case SAMPLE:
-                  {
                     chronomap.emplace_back(sub, system_clock::now());
                     break;
-                  }
                   default:
-                  { 
                     // TODO: Handle ON_CHANGE and TARGET_DEFINED modes
+                    // Ref: 3.5.1.5.2
                     break;
-                  }
                 }
               }
 
-              std::cout << "Chronomap created" << std::endl;
-
-              // Main loop that checks every chrono of the map
+              // Main loop that sends updates for paths whose chrono has expired
               while(!context->IsCancelled()) {
                 auto start = high_resolution_clock::now();
+                // Initializes the updateList
                 SubscribeRequest updateRequest(request);
-                auto updateList = updateRequest.subscribe().subscription();
-
+                SubscriptionList* updateList = updateRequest.mutable_subscribe();
+                updateList->clear_subscription();
+                // Fills the list with Subscriptions whose chrono has expired
                 for (int i = 0; i<request.subscribe().subscription_size(); i++) {
                   unsigned long duration = duration_cast<nanoseconds>
                     (high_resolution_clock::now() - chronomap[i].second).count();
                   if (duration > chronomap[i].first.sample_interval()) {
-                    // If an update is needed, reset the corresponding chrono
                     chronomap[i].second = high_resolution_clock::now();
-                  } else {
-                    // Else, remove from the update list
-                    updateList.DeleteSubrange(i, 1);
+                    Subscription* sub = updateList->add_subscription();
+                    sub->google::protobuf::Message::CopyFrom(chronomap[i].first);
                   }
                 }
-                // TODO: Send the update now, only with Paths that need an update
-                if (updateList.size() > 0) {
+                // Sends a single message that updates all paths of the list
+                if (updateList->subscription_size() > 0) {
                   buildNotification(updateRequest, response);
                   std::cout << "Sending sampled update" << std::endl;
                   std::cout << response.DebugString() << std::endl;
                   stream->Write(response);
                   response.clear_response();
                 }
+
                 // Caps the loop at 5 iterations per second
                 auto loopTime = high_resolution_clock::now() - start;
                 std::this_thread::sleep_for(milliseconds(200) - loopTime);
@@ -208,22 +177,17 @@ class GNMIServer final : public gNMI::Service
               break;
 						}
 					case SubscriptionList_Mode_ONCE:
-						{
-							/* TODO: Same as above but no need for a thread to handle it */
-							std::cout << "Received a ONCE SubscribeRequest" << std::endl;
-							return Status(StatusCode::UNIMPLEMENTED,
-														grpc::string("ONCE mode not implemented yet"));
-							break;
-						}
+            std::cout << "Received a ONCE SubscribeRequest" << std::endl;
+            return Status(StatusCode::UNIMPLEMENTED,
+                          grpc::string("ONCE mode not implemented yet"));
+            break;
 					case SubscriptionList_Mode_POLL:
-						{
-							std::cout << "Received a POLL SubscribeRequest" << std::endl;
-							return Status(StatusCode::UNIMPLEMENTED,
-														grpc::string("POLL mode not implemented yet"));
-							break;
-						}
+            std::cout << "Received a POLL SubscribeRequest" << std::endl;
+            return Status(StatusCode::UNIMPLEMENTED,
+                          grpc::string("POLL mode not implemented yet"));
+            break;
 					default:
-						return Status(StatusCode::UNIMPLEMENTED,
+						return Status(StatusCode::UNKNOWN,
 													grpc::string("Unkown mode"));
 				}
 			}
