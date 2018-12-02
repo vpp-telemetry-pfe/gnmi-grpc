@@ -139,18 +139,6 @@ class GNMIServer final : public gNMI::Service
       SubscribeRequest request;
       SubscribeResponse response;
 
-      /* TODO Authentication : Acess client metadata */
-      std::multimap<grpc::string_ref, grpc::string_ref> metadata;
-      metadata = context->client_metadata();
-
-      std::cout << "Metadata" << std::endl;
-      for (std::multimap<grpc::string_ref, grpc::string_ref>::const_iterator iter = metadata.begin();
-           iter != metadata.end();
-           ++iter ) {
-        std::cout << '\t' << iter->first << '\t' << iter->second << '\n';
-      }
-      /* End Of TODO */
-
       // This only handles the case of a new RPC yet
       while (stream->Read(&request)) {
 

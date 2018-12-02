@@ -4,6 +4,8 @@
 
 #include "gnmi_security.h"
 
+using std::string;
+
 /* GetFileContent - Get an entier File content
  * @param Path to the file
  * @return String containing the entire File.
@@ -98,8 +100,13 @@ Status UserPassAuthProcessor::Process(const InputMetadata& auth_metadata,
             << '\t' << pass_kv->first << '\t' << pass_kv->second
             << std::endl;
 
-  //consumed_auth_metadata->insert(std::make_pair("username", "lol"));
-  //consumed_auth_metadata->insert(std::make_pair("password", "lol"));
+  /* Remove username and password key-value from metadata */
+  consumed_auth_metadata->insert(std::make_pair(
+        string(user_kv->first.data(), user_kv->first.length()),
+        string(user_kv->second.data(), user_kv->second.length())));
+  consumed_auth_metadata->insert(std::make_pair(
+        string(pass_kv->first.data(), pass_kv->first.length()),
+        string(pass_kv->second.data(), pass_kv->second.length())));
 
   return grpc::Status::OK;
 }
