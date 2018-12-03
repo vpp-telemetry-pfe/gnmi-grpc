@@ -46,11 +46,11 @@ void UnixtoGnmiPath(string unixp, Path* path)
 {
   vector<string> entries = split (unixp, '/');
 
-	for (auto const& entry : entries) {
-		PathElem *pathElem = path->add_elem();
-		pathElem->set_name(entry);
-		cout << entry << endl;
-	}
+  for (auto const& entry : entries) {
+    PathElem *pathElem = path->add_elem();
+    pathElem->set_name(entry);
+    cout << entry << endl;
+  }
 }
 
 /**

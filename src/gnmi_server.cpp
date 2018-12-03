@@ -25,69 +25,69 @@ using google::protobuf::RepeatedPtrField;
 
 class GNMIServer final : public gNMI::Service
 {
-	public:
+  public:
 
-		Status Capabilities(ServerContext* context,
-				const CapabilityRequest* request, CapabilityResponse* response)
-		{
-			return Status(StatusCode::UNIMPLEMENTED,
-					grpc::string("'Capabilities' not implemented yet"));
-		}
+    Status Capabilities(ServerContext* context,
+        const CapabilityRequest* request, CapabilityResponse* response)
+    {
+      return Status(StatusCode::UNIMPLEMENTED,
+          grpc::string("'Capabilities' not implemented yet"));
+    }
 
-		Status Get(ServerContext* context,
-				const GetRequest* request, GetResponse* response)
-		{
-			return Status(StatusCode::UNIMPLEMENTED,
-					grpc::string("'Get' method not implemented yet"));
-		}
+    Status Get(ServerContext* context,
+        const GetRequest* request, GetResponse* response)
+    {
+      return Status(StatusCode::UNIMPLEMENTED,
+          grpc::string("'Get' method not implemented yet"));
+    }
 
-		Status Set(ServerContext* context,
-				const SetRequest* request, SetResponse* response)
-		{
-			return Status(StatusCode::UNIMPLEMENTED,
-					grpc::string("'Set' method not implemented yet"));
-		}
+    Status Set(ServerContext* context,
+        const SetRequest* request, SetResponse* response)
+    {
+      return Status(StatusCode::UNIMPLEMENTED,
+          grpc::string("'Set' method not implemented yet"));
+    }
 
-		Status Subscribe(ServerContext* context,
-				ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
-		{
-			SubscribeRequest request;
-			SubscribeResponse response;
+    Status Subscribe(ServerContext* context,
+        ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
+    {
+      SubscribeRequest request;
+      SubscribeResponse response;
 
-			// This only handles the case of a new RPC yet
-			while (stream->Read(&request)) {
+      // This only handles the case of a new RPC yet
+      while (stream->Read(&request)) {
 
-				// Replies with an error if there is no SubscriptionList field
-				if (!request.has_subscribe()) {
-					// TODO: Return the error code in a SubscriptionRequest message
-					// Ref: 3.5.1.1
-					context->TryCancel();
-					return Status(StatusCode::CANCELLED, grpc::string(
-												"SubscribeRequest needs non-empty SubscriptionList"));
-				}
+        // Replies with an error if there is no SubscriptionList field
+        if (!request.has_subscribe()) {
+          // TODO: Return the error code in a SubscriptionRequest message
+          // Ref: 3.5.1.1
+          context->TryCancel();
+          return Status(StatusCode::CANCELLED, grpc::string(
+                        "SubscribeRequest needs non-empty SubscriptionList"));
+        }
 
-				switch (request.subscribe().mode()) {
-					case SubscriptionList_Mode_STREAM:
-						{
-							cout << "Received a STREAM SubscribeRequest" << endl;
+        switch (request.subscribe().mode()) {
+          case SubscriptionList_Mode_STREAM:
+            {
+              cout << "Received a STREAM SubscribeRequest" << endl;
               cout << request.DebugString() << endl;
 
-							// Send first message: notification message
-							BuildNotification(request, response);
+              // Send first message: notification message
+              BuildNotification(request, response);
               cout << "Sending the first update" << endl;
-							cout << response.DebugString() << endl;
-							stream->Write(response);
-							response.clear_response();
+              cout << response.DebugString() << endl;
+              stream->Write(response);
+              response.clear_response();
 
-							// Send second message: sync message
-							response.set_sync_response(true);
+              // Send second message: sync message
+              response.set_sync_response(true);
               cout << "Sending sync response" << endl;
-							cout << response.DebugString() << endl;
-							stream->Write(response);
-							response.clear_response();
+              cout << response.DebugString() << endl;
+              stream->Write(response);
+              response.clear_response();
 
-							// Periodically updates paths that require SAMPLE updates
-							
+              // Periodically updates paths that require SAMPLE updates
+              
               // Associates each SAMPLE subscription to a chrono within a map
               vector<pair
                 <Subscription, time_point<system_clock>>> chronomap;
@@ -137,24 +137,24 @@ class GNMIServer final : public gNMI::Service
 
               cout << "Subscribe RPC call CANCELLED" << endl;
               break;
-						}
-					case SubscriptionList_Mode_ONCE:
+            }
+          case SubscriptionList_Mode_ONCE:
             cout << "Received a ONCE SubscribeRequest" << endl;
             return Status(StatusCode::UNIMPLEMENTED,
                           grpc::string("ONCE mode not implemented yet"));
             break;
-					case SubscriptionList_Mode_POLL:
+          case SubscriptionList_Mode_POLL:
             cout << "Received a POLL SubscribeRequest" << endl;
             return Status(StatusCode::UNIMPLEMENTED,
                           grpc::string("POLL mode not implemented yet"));
             break;
-					default:
-						return Status(StatusCode::UNKNOWN,
-													grpc::string("Unkown mode"));
-				}
-			}
-			return Status::OK;
-		}
+          default:
+            return Status(StatusCode::UNKNOWN,
+                          grpc::string("Unkown mode"));
+        }
+      }
+      return Status::OK;
+    }
 };
 
 void RunServer()
