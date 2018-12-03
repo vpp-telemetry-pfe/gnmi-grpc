@@ -228,15 +228,14 @@ static void show_usage(std::string name)
     << std::endl;
 }
 
-struct auth_t auth;
-
 int main (int argc, char* argv[]) {
   int c;
   extern char *optarg;
   std::string key, certs;
   int option_index = 0, tls = 0;
+  std::string username, password;
   const int tls_key_id = 1000, tls_chain_id = 1001;
-  ServerSecurityContext *cxt = new ServerSecurityContext();
+  ServerSecurityContext *cxt;
 
   static struct option long_options[] =
   {
@@ -260,21 +259,21 @@ int main (int argc, char* argv[]) {
         break;
       case 'u':
         if (optarg) {
-          auth.username = string(optarg);
-          std::cout << "username: " << auth.username << std::endl;
+          username = string(optarg);
+          std::cout << "username: " << username << std::endl;
         } else {
           std::cerr << "Please specify a string with username option\n"
-            << "Ex: -uUSERNAME" << std::endl;
+            << "Ex: -u USERNAME" << std::endl;
           exit(1);
         }
         break;
       case 'p':
         if (optarg) {
-          auth.password = string(optarg);
-          std::cout << "password: " << auth.password << std::endl;
+          password = string(optarg);
+          std::cout << "password: " << password << std::endl;
         } else {
           std::cerr << "Please specify a string with password option\n"
-            << "Ex: -pPASSWORD" << std::endl;
+            << "Ex: -p PASSWORD" << std::endl;
           exit(1);
         }
         break;
@@ -284,7 +283,7 @@ int main (int argc, char* argv[]) {
           key = string(optarg);
         } else {
           std::cerr << "Please specify a string with private key path\n"
-            << "Ex: --private-keyKEY_PATH" << std::endl;
+            << "Ex: --private-key KEY_PATH" << std::endl;
           exit(1);
         }
         break;
@@ -294,7 +293,7 @@ int main (int argc, char* argv[]) {
           certs = string(optarg);
         } else {
           std::cerr << "Please specify a string with chain certs path\n"
-            << "Ex: --cert-chainCERTS_PATH" << std::endl;
+            << "Ex: --cert-chain CERTS_PATH" << std::endl;
           exit(1);
         }
         break;
@@ -306,6 +305,7 @@ int main (int argc, char* argv[]) {
     }
   }
 
+  cxt = new ServerSecurityContext(username, password);
   if (tls) {
     if (key.empty() || certs.empty()) {
       std::cerr << "Both private key and certificate required" << std::endl;
