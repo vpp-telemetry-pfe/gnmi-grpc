@@ -5,6 +5,7 @@
 #include "gnmi_security.h"
 
 using std::string;
+using std::shared_ptr;
 
 /* GetFileContent - Get an entier File content
  * @param Path to the file
@@ -26,14 +27,20 @@ std::string GetFileContent(std::string path)
   return content;
 }
 
-std::shared_ptr<ServerCredentials> TlsEncrypt::GetServerCredentials()
+/* SslCredentialsHelper -
+ * @param ppath Private Key path
+ * @param cpath certificates path
+ * @return
+ */
+std::shared_ptr<ServerCredentials>
+SslCredentialsHelper(string ppath, string cpath)
 {
   SslServerCredentialsOptions
-    ssl_opts(GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY);
+        ssl_opts(GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY);
 
   SslServerCredentialsOptions::PemKeyCertPair pkcp = {
-    GetFileContent(private_key_path),
-    GetFileContent(chain_certs_path)
+    GetFileContent(ppath),
+    GetFileContent(cpath)
   };
 
   ssl_opts.pem_root_certs = "";
@@ -42,52 +49,48 @@ std::shared_ptr<ServerCredentials> TlsEncrypt::GetServerCredentials()
   return grpc::SslServerCredentials(ssl_opts);
 }
 
-std::shared_ptr<ServerCredentials> InsecureEncrypt::GetServerCredentials()
+/* Get Server Credentials according to Scurity Context policy */
+std::shared_ptr<ServerCredentials> ServerSecurityContext::GetCredentials()
 {
-  return grpc::InsecureServerCredentials();
+  std::shared_ptr<ServerCredentials> servCred;
+
+  if (encType == SSL) {
+      servCred = SslCredentialsHelper(private_key_path, chain_certs_path);
+    } else if (encType == INSECURE) {
+        servCred = grpc::InsecureServerCredentials();
+    } else {
+      std::cerr << "Unknown Encryption Type" << std::endl;
+      exit(1);
+    }
+
+  if (authType == NOAUTH)
+    return servCred;
+  else if (authType == USERPASS && encType == SSL) {
+      servCred->SetAuthMetadataProcessor(shared_ptr<UserPassProcessor>(proc));
+      return servCred;
+  } else if (authType == USERPASS && encType == INSECURE) {
+    std::cerr << "Impossible to use user/pass auth with insecure connection"
+      << std::endl;
+    exit(1);
+  } else {
+    std::cerr << "Unknown Authentication Type" << std::endl;
+    exit(1);
+  }
 }
 
-void ServerSecurityContext::SetInsecureEncryptType()
-{
-  delete type_;
-  type_ = new InsecureEncrypt();
-}
-
-void ServerSecurityContext::SetTlsEncryptType(std::string cert, std::string key)
-{
-  delete type_;
-  type_ = new TlsEncrypt(cert, key);
-}
-
-std::shared_ptr<ServerCredentials> ServerSecurityContext::Credentials()
-{
-  std::shared_ptr<grpc::ServerCredentials> creds;
-
-  creds = type_->GetServerCredentials();
-  std::shared_ptr<UserPassAuthProcessor> proc(processor_);
-  creds->SetAuthMetadataProcessor(proc);
-
-  return creds;
-}
-
-/* Implement a metadataProcessor for username/password authentication */
-Status UserPassAuthProcessor::Process(const InputMetadata& auth_metadata,
+/* Implement a MetadataProcessor for username/password authentication */
+Status UserPassProcessor::Process(const InputMetadata& auth_metadata,
                                       grpc::AuthContext* context,
                                       OutputMetadata* consumed_auth_metadata,
                                       OutputMetadata* response_metadata)
 {
-  /*
-   * context is read/write: it contains the properties of the channel peer and
-   * it is the job of the Process method to augment it with properties derived
-   * from the passed-in auth_metadata.
-   */
+  /* Look for username/password fields in Metadata sent by client */
   auto user_kv = auth_metadata.find("username");
   if (user_kv == auth_metadata.end()) {
     std::cerr << "No username field" << std::endl;
     return grpc::Status(grpc::StatusCode::UNAUTHENTICATED,
                         "No username field");
   }
-
   auto pass_kv = auth_metadata.find("password");
   if (pass_kv == auth_metadata.end()) {
     std::cerr << "No password field" << std::endl;
@@ -95,18 +98,13 @@ Status UserPassAuthProcessor::Process(const InputMetadata& auth_metadata,
                         "No password field");
   }
 
-  //TODO test if username and password are good
+  /* test if username and password are good */
   if (password != pass_kv->second.data() ||
       username != user_kv->second.data()) {
     std::cerr << "Invalid username/password" << std::endl;
     return grpc::Status(grpc::StatusCode::UNAUTHENTICATED,
                         "Invalid username/password");
   }
-
-  std::cout << "Processor" << '\n'
-            << '\t' << user_kv->first << '\t' << user_kv->second << '\n'
-            << '\t' << pass_kv->first << '\t' << pass_kv->second
-            << std::endl;
 
   /* Remove username and password key-value from metadata */
   consumed_auth_metadata->insert(std::make_pair(

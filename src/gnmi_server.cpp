@@ -208,7 +208,7 @@ void RunServer(ServerSecurityContext *cxt)
   GNMIServer service;
   ServerBuilder builder;
 
-  builder.AddListeningPort(server_address, cxt->Credentials());
+  builder.AddListeningPort(server_address, cxt->GetCredentials());
   builder.RegisterService(&service);
   std::unique_ptr<Server> server(builder.BuildAndStart());
   std::cout << "Server listening on " << server_address << std::endl;
@@ -221,38 +221,38 @@ static void show_usage(std::string name)
   std::cerr << "Usage: " << name << " <option(s)>\n"
     << "Options:\n"
     << "\t-h,--help\t\t\tShow this help message\n"
-    << "\t-u,--username<USERNAME>\t\tDefine connection username\n"
-    << "\t-p,--password<PASSWORD>\t\tDefine connection password\n"
+    << "\t-u,--username USERNAME\t\tDefine connection username\n"
+    << "\t-p,--password PASSWORD\t\tDefine connection password\n"
     << "\t-f,--force-insecure\t\tNo TLS connection, no password authentication\n"
-    << "\t--private-key<PRIVATE_KEY>\tpath to server PEM private key\n"
-    << "\t--cert-chain<CERT_CHAIN>\tpath to server PEM certificate chain\n"
+    << "\t-k,--private-key PRIVATE_KEY\tpath to server PEM private key\n"
+    << "\t-c,--cert-chain CERT_CHAIN\tpath to server PEM certificate chain\n"
     << std::endl;
 }
 
 int main (int argc, char* argv[]) {
   int c;
   extern char *optarg;
-  std::string key, certs;
-  int option_index = 0, tls = 1;
+  int option_index = 0;
   std::string username, password;
-  const int tls_key_id = 1000, tls_chain_id = 1001;
-  ServerSecurityContext *cxt;
+  ServerSecurityContext *cxt = new ServerSecurityContext();
 
   static struct option long_options[] =
   {
     {"help", no_argument, 0, 'h'},
     {"username", required_argument, 0, 'u'},
     {"password", required_argument, 0, 'p'},
-    {"private-key", required_argument, 0, tls_key_id}, //private key
-    {"cert-chain", required_argument, 0, tls_chain_id}, //certificate chain
+    {"private-key", required_argument, 0, 'k'}, //private key
+    {"cert-chain", required_argument, 0, 'c'}, //certificate chain
     {"force-insecure", no_argument, 0, 'f'}, //insecure mode
     {0, 0, 0, 0}
   };
 
-  /* optional (::) > h,f
-   * mandatory (:) > t,u,p
+  /*
+   * An option character followed by (‘:’) indicates a required argument.
+   * An option character is followed by (‘::’) indicates an optional argument.
+   * Here: optional argument (h,f) ; mandatory arguments (p,u)
    */
-  while ((c = getopt_long(argc, argv, "hfp::u::", long_options, &option_index))
+  while ((c = getopt_long(argc, argv, "hfp:u:c:k:", long_options, &option_index))
          != -1) {
     switch (c)
     {
@@ -262,8 +262,8 @@ int main (int argc, char* argv[]) {
         break;
       case 'u':
         if (optarg) {
-          username = string(optarg);
-          std::cout << "username: " << username << std::endl;
+          cxt->SetAuthType(USERPASS);
+          cxt->SetUsername(string(optarg));
         } else {
           std::cerr << "Please specify a string with username option\n"
             << "Ex: -u USERNAME" << std::endl;
@@ -272,28 +272,26 @@ int main (int argc, char* argv[]) {
         break;
       case 'p':
         if (optarg) {
-          password = string(optarg);
-          std::cout << "password: " << password << std::endl;
+          cxt->SetAuthType(USERPASS);
+          cxt->SetPassword(string(optarg));
         } else {
           std::cerr << "Please specify a string with password option\n"
             << "Ex: -p PASSWORD" << std::endl;
           exit(1);
         }
         break;
-      case tls_key_id:
-        tls = 1;
+      case 'k':
         if (optarg) {
-          key = string(optarg);
+          cxt->SetKeyPath(string(optarg));
         } else {
           std::cerr << "Please specify a string with private key path\n"
             << "Ex: --private-key KEY_PATH" << std::endl;
           exit(1);
         }
         break;
-      case tls_chain_id:
-        tls = 1;
+      case 'c':
         if (optarg) {
-          certs = string(optarg);
+          cxt->SetCertsPath(string(optarg));
         } else {
           std::cerr << "Please specify a string with chain certs path\n"
             << "Ex: --cert-chain CERTS_PATH" << std::endl;
@@ -301,7 +299,7 @@ int main (int argc, char* argv[]) {
         }
         break;
       case 'f':
-        tls = 0;
+        cxt->SetEncryptType(INSECURE);
         break;
       case '?':
         show_usage(argv[0]);
@@ -311,19 +309,21 @@ int main (int argc, char* argv[]) {
     }
   }
 
-  cxt = new ServerSecurityContext(username, password);
-  if (tls) {
-    if (key.empty() || certs.empty()) {
+  if (cxt->GetEncryptType() == EncryptType::SSL) {
+    if (cxt->GetKeyPath().empty() || cxt->GetCertsPath().empty()) {
       std::cerr << "Both private key and certificate required" << std::endl;
       exit(1);
     }
-    std::cout << "Initiate a TLS connection with certificate " << certs
-      << " and key " << key << std::endl;
-    cxt->SetTlsEncryptType(certs, key);
-  } else {
-    std::cout << "Initiate an insecure connection" << std::endl;
-    cxt->SetInsecureEncryptType();
+    std::cout << "Initiate a TLS connection" << std::endl;
   }
+
+  if (cxt->GetAuthType() == AuthType::USERPASS) {
+    if (cxt->GetUsername().empty() || cxt->GetPassword().empty()) {
+      std::cerr << "Both username and password required" << std::endl;
+      exit(1);
+    }
+  }
+
 
   RunServer(cxt);
 

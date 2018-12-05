@@ -8,73 +8,67 @@ using grpc::ServerCredentials;
 using grpc::SslServerCredentialsOptions;
 using grpc::Status;
 
-/******************
- * Authentication *
- ******************/
-
-/* User/Password Authentication */
-class UserPassAuthProcessor : public grpc::AuthMetadataProcessor {
+class UserPassProcessor final : public grpc::AuthMetadataProcessor {
   public:
-  Status Process(const InputMetadata& auth_metadata,
-                 grpc::AuthContext* context,
-                 OutputMetadata* consumed_auth_metadata,
-                 OutputMetadata* response_metadata) override;
-  UserPassAuthProcessor() {};
-  UserPassAuthProcessor(std::string user, std::string pass)
-    : username(user), password(pass) {};
-  void SetPassword(std::string pass) {password = pass;};
-  void SetUsername(std::string user) {password = user;};
+    Status Process(const InputMetadata& auth_metadata,
+                   grpc::AuthContext* context,
+                   OutputMetadata* consumed_auth_metadata,
+                   OutputMetadata* response_metadata) override;
 
   private:
-    std::string username;
-    std::string password;
+    std::string username, password;
+
+  friend class ServerSecurityContext;
 };
 
-/**************
- * Encryption *
- **************/
-
-/* Strategy Design Pattern */
-
-/* Set an encryption type */
-class TypeEncrypt {
-  public:
-    virtual ~TypeEncrypt() {};
-    virtual std::shared_ptr<ServerCredentials> GetServerCredentials() = 0;
+/* Supported Authentication methods */
+enum AuthType {
+  NOAUTH,
+  USERPASS
 };
 
-/* TLS Credentials */
-class TlsEncrypt final: public TypeEncrypt {
-  private:
-    std::string chain_certs_path; // PEM path for server private key
-    std::string private_key_path; // PEM server certificate chain
-
-  public:
-    TlsEncrypt() {};
-    TlsEncrypt(std::string certs, std::string key)
-      : chain_certs_path(certs), private_key_path(key) {};
-    std::shared_ptr<ServerCredentials> GetServerCredentials() override;
+/* Supported Encryption methods */
+enum EncryptType {
+  SSL,
+  INSECURE
 };
 
-/* Insecure Credentials */
-class InsecureEncrypt final: public TypeEncrypt {
-  public:
-    std::shared_ptr<ServerCredentials> GetServerCredentials() override;
-};
-
-/* Provide necessary set of functions for encryption */
+/*
+ * Represents server security context. Carries:
+ * - Encryption informations : Either Tls or Insecure
+ * - Authentication informations: Based on Metadata Processor or Interceptor
+ */
 class ServerSecurityContext {
   private:
-    TypeEncrypt *type_;
-    UserPassAuthProcessor *processor_;
+    enum EncryptType encType;
+    std::string private_key_path, chain_certs_path; //SSL
+
+    enum AuthType authType;
+    UserPassProcessor *proc;
 
   public:
-    ServerSecurityContext()
-    {type_ = NULL; processor_ = new UserPassAuthProcessor();};
-    ServerSecurityContext(std::string user, std::string pass)
-    {type_ = NULL; processor_ = new UserPassAuthProcessor(user, pass);};
-    ~ServerSecurityContext() {delete type_; delete processor_;};
-    void SetInsecureEncryptType();
-    void SetTlsEncryptType(std::string cert, std::string key);
-    std::shared_ptr<ServerCredentials> Credentials();
+    ServerSecurityContext() : encType(SSL), authType(NOAUTH)
+      {proc = new UserPassProcessor();};
+    ~ServerSecurityContext() {delete proc;};
+
+    /* Return ServerCredentials according to enum EncryptType*/
+    std::shared_ptr<ServerCredentials> GetCredentials();
+    /* Set/Get Paths for PEM keys and certs */
+    std::string GetKeyPath() {return private_key_path;};
+    std::string GetCertsPath() {return chain_certs_path;};
+    void SetKeyPath(std::string keyPath) {private_key_path = keyPath;};
+    void SetCertsPath(std::string certsPath) {chain_certs_path = certsPath;};
+    /* Authentication Processor to parse message metadata */
+    void SetUsername(std::string user) {proc->username = user;};
+    void SetPassword(std::string pass) {proc->password = pass;};
+    std::string GetUsername() {return proc->username;};
+    std::string GetPassword() {return proc->password;};
+    /* Set/Get Encryption Type of this security context */
+    void SetEncryptType(enum EncryptType type) {encType = type;};
+    enum EncryptType GetEncryptType() {return encType;};
+    /* Set/Get Authentication Type of this security context */
+    void SetAuthType(enum AuthType type) {authType = type;};
+    enum AuthType GetAuthType() {return authType;};
+
+    friend class UserPassProcessor;
 };
