@@ -47,13 +47,13 @@ std::shared_ptr<ServerCredentials> InsecureEncrypt::GetServerCredentials()
   return grpc::InsecureServerCredentials();
 }
 
-void ServerSecurityContext::setInsecureEncryptType()
+void ServerSecurityContext::SetInsecureEncryptType()
 {
   delete type_;
   type_ = new InsecureEncrypt();
 }
 
-void ServerSecurityContext::setTlsEncryptType(std::string cert, std::string key)
+void ServerSecurityContext::SetTlsEncryptType(std::string cert, std::string key)
 {
   delete type_;
   type_ = new TlsEncrypt(cert, key);

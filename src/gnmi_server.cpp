@@ -223,8 +223,9 @@ static void show_usage(std::string name)
     << "\t-h,--help\t\t\tShow this help message\n"
     << "\t-u,--username<USERNAME>\t\tDefine connection username\n"
     << "\t-p,--password<PASSWORD>\t\tDefine connection password\n"
+    << "\t-f,--force-insecure\t\tNo TLS connection, no password authentication\n"
     << "\t--private-key<PRIVATE_KEY>\tpath to server PEM private key\n"
-    << "\t--cert-chain<CERT_CHAIN>\tpath to server PEM certificate chain"
+    << "\t--cert-chain<CERT_CHAIN>\tpath to server PEM certificate chain\n"
     << std::endl;
 }
 
@@ -232,7 +233,7 @@ int main (int argc, char* argv[]) {
   int c;
   extern char *optarg;
   std::string key, certs;
-  int option_index = 0, tls = 0;
+  int option_index = 0, tls = 1;
   std::string username, password;
   const int tls_key_id = 1000, tls_chain_id = 1001;
   ServerSecurityContext *cxt;
@@ -244,12 +245,14 @@ int main (int argc, char* argv[]) {
     {"password", required_argument, 0, 'p'},
     {"private-key", required_argument, 0, tls_key_id}, //private key
     {"cert-chain", required_argument, 0, tls_chain_id}, //certificate chain
+    {"force-insecure", no_argument, 0, 'f'}, //insecure mode
     {0, 0, 0, 0}
   };
 
-  /* "a::b:c:" means: a is optional, b & c are mandatory
-   * Here it is mandatory to provide a username and a password */
-  while ((c = getopt_long(argc, argv, "hp:u:t", long_options, &option_index))
+  /* optional (::) > h,f
+   * mandatory (:) > t,u,p
+   */
+  while ((c = getopt_long(argc, argv, "hfp::u::", long_options, &option_index))
          != -1) {
     switch (c)
     {
@@ -297,6 +300,9 @@ int main (int argc, char* argv[]) {
           exit(1);
         }
         break;
+      case 'f':
+        tls = 0;
+        break;
       case '?':
         show_usage(argv[0]);
         exit(1);
@@ -313,10 +319,10 @@ int main (int argc, char* argv[]) {
     }
     std::cout << "Initiate a TLS connection with certificate " << certs
       << " and key " << key << std::endl;
-    cxt->setTlsEncryptType(certs, key);
+    cxt->SetTlsEncryptType(certs, key);
   } else {
     std::cout << "Initiate an insecure connection" << std::endl;
-    cxt->setInsecureEncryptType();
+    cxt->SetInsecureEncryptType();
   }
 
   RunServer(cxt);

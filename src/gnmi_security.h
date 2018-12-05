@@ -22,8 +22,8 @@ class UserPassAuthProcessor : public grpc::AuthMetadataProcessor {
   UserPassAuthProcessor() {};
   UserPassAuthProcessor(std::string user, std::string pass)
     : username(user), password(pass) {};
-  void setPassword(std::string pass) {password = pass;};
-  void setUsername(std::string user) {password = user;};
+  void SetPassword(std::string pass) {password = pass;};
+  void SetUsername(std::string user) {password = user;};
 
   private:
     std::string username;
@@ -74,7 +74,7 @@ class ServerSecurityContext {
     ServerSecurityContext(std::string user, std::string pass)
     {type_ = NULL; processor_ = new UserPassAuthProcessor(user, pass);};
     ~ServerSecurityContext() {delete type_; delete processor_;};
-    void setInsecureEncryptType();
-    void setTlsEncryptType(std::string cert, std::string key);
+    void SetInsecureEncryptType();
+    void SetTlsEncryptType(std::string cert, std::string key);
     std::shared_ptr<ServerCredentials> Credentials();
 };
