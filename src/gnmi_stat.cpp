@@ -16,7 +16,7 @@ using namespace std;
 /* CreatePatterns - Create a VPP vector containing set of paths as parameter for
  * stat_segment_ls.
  * @param metrics Vector of UNIX paths to shared memory stats counters.
- * @return VPP vector containing UNIX paths.
+ * @return VPP vector containing UNIX paths or NULL in case of failure.
  */
 u8 ** CreatePatterns(vector<string> metrics)
 {
@@ -43,16 +43,22 @@ void FreePatterns(u8 **patterns) {stat_segment_vec_free(patterns);}
 
 /* DisplayPatterns - Print counter values of a set of counter path.
  * @param patterns VPP vector containing UNIX path of stats counter.
+ * @return -1=patterns not found ; 0=no problem faced
  */
-void DisplayPatterns(u8 **patterns)
+int DisplayPatterns(u8 **patterns)
 {
   stat_segment_data_t *res;
   static u32 *stats = 0;
 
-  stats = stat_segment_ls(patterns);
-  res = stat_segment_dump(stats);
-  if (!res)
-    cerr << "Memory layout has changed" << endl;
+  do {
+    stats = stat_segment_ls(patterns);
+    if (!stats) {
+      cerr << "No pattern was found" << endl;
+      return -1;
+    }
+
+    res = stat_segment_dump(stats);
+  } while (res == 0); /* Memory layout has changed */
 
   for (int i = 0; i < stat_segment_vec_len(res); i++) {
     switch (res[i].type) {
@@ -87,6 +93,7 @@ void DisplayPatterns(u8 **patterns)
         cerr << "Unknown value" << endl;
     }
   }
+  return 0;
 }
 
 //For testing purpose only
@@ -105,6 +112,8 @@ int main (int argc, char **argv)
     cout << "Connected to STAT socket" << endl;
 
   patterns = CreatePatterns(metrics);
+  if (!patterns)
+    return -ENOMEM;
   DisplayPatterns(patterns);
   FreePatterns(patterns);
 

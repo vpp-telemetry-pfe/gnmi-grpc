@@ -62,12 +62,14 @@ void BuildNotification(
     const SubscribeRequest& request, SubscribeResponse& response)
 {
   Notification *notification = response.mutable_update();
-
+  RepeatedPtrField<Update>* updateList = notification->mutable_update();
   milliseconds ts;
+
+  /* Get time since epoch in milliseconds */
   ts = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
   notification->set_timestamp(ts.count());
 
-  // Notification.prefix
+  /* Notification message prefix based on SubscriptionList prefix */
   if (request.subscribe().has_prefix()) {
     Path* prefix = notification->mutable_prefix();
     prefix->set_target(request.subscribe().prefix().target());
@@ -75,24 +77,38 @@ void BuildNotification(
     prefix->mutable_elem()->Add()->set_name("measurement1");
   }
 
-  // repeated Notification.update
+  /* TODO : Path aliases defined by clients to access a long path.
+   * We need to provide global variable with the list of aliases which can be
+   * used only if use_aliases boolean is true in SubscriptionList. */
+  if (request.subscribe().use_aliases())
+    std::cerr << "Unsupported usage of aliases" << std::endl;
+
+  /* TODO check if only updates should be sent
+   * Require to implement a caching system to access last data sent. */
+  if (request.subscribe().updates_only())
+    std::cerr << "Unsupported usage of Updates, every paths will be sent"
+              << std::endl;
+
+  /* Fill Update RepeatedPtrField in Notification message
+   * Update field contains only data elements that have changed values. */
   for (int i=0; i<request.subscribe().subscription_size(); i++) {
     Subscription sub = request.subscribe().subscription(i);
     RepeatedPtrField<Update>* updateList =
       notification->mutable_update();
     Update* update = updateList->Add();
-
     Path* path = update->mutable_path();
+
+    /* TODO: Fetch the value from the stat_api instead of hardcoding a fake one
+     * If succeeded Copy Request path into response path.
+     */
     path->CopyFrom(sub.path());
 
-    // TODO: Fetch the value from the stat_api instead of hardcoding a fake one
     TypedValue* val = update->mutable_val();
     val->set_string_val("Test message number " + to_string(i));
 
     update->set_duplicates(0);
   }
 
-  // Notification.atomic
   notification->set_atomic(false);
 }
 
