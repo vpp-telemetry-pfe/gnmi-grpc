@@ -3,11 +3,7 @@
 #include <iostream>
 #include <memory>
 #include <chrono>
-#include <thread> //this_thread::sleep_for
-
-#include <pthread.h>
-#include <unistd.h>
-#include <google/protobuf/repeated_field.h>
+#include <thread>
 
 #include <grpc/grpc.h>
 #include <grpcpp/server.h>
@@ -25,70 +21,70 @@ using google::protobuf::RepeatedPtrField;
 
 class GNMIServer final : public gNMI::Service
 {
-	public:
+  public:
 
-		Status Capabilities(ServerContext* context,
-				const CapabilityRequest* request, CapabilityResponse* response)
-		{
-			return Status(StatusCode::UNIMPLEMENTED,
-					grpc::string("'Capabilities' not implemented yet"));
-		}
+    Status Capabilities(ServerContext* context,
+        const CapabilityRequest* request, CapabilityResponse* response)
+    {
+      return Status(StatusCode::UNIMPLEMENTED,
+          grpc::string("'Capabilities' not implemented yet"));
+    }
 
-		Status Get(ServerContext* context,
-				const GetRequest* request, GetResponse* response)
-		{
-			return Status(StatusCode::UNIMPLEMENTED,
-					grpc::string("'Get' method not implemented yet"));
-		}
+    Status Get(ServerContext* context,
+        const GetRequest* request, GetResponse* response)
+    {
+      return Status(StatusCode::UNIMPLEMENTED,
+          grpc::string("'Get' method not implemented yet"));
+    }
 
-		Status Set(ServerContext* context,
-				const SetRequest* request, SetResponse* response)
-		{
-			return Status(StatusCode::UNIMPLEMENTED,
-					grpc::string("'Set' method not implemented yet"));
-		}
+    Status Set(ServerContext* context,
+        const SetRequest* request, SetResponse* response)
+    {
+      return Status(StatusCode::UNIMPLEMENTED,
+          grpc::string("'Set' method not implemented yet"));
+    }
 
-		Status Subscribe(ServerContext* context,
-				ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
-		{
-			SubscribeRequest request;
-			SubscribeResponse response;
+    Status Subscribe(ServerContext* context,
+        ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
+    {
+      SubscribeRequest request;
+      SubscribeResponse response;
 
-			// This only handles the case of a new RPC yet
-			while (stream->Read(&request)) {
+      // This only handles SubscriptionRequests with the subscription field.
+      // Requests with poll and aliases fields are not handled yet.
+      while (stream->Read(&request)) {
 
-				// Replies with an error if there is no SubscriptionList field
-				if (!request.has_subscribe()) {
-					// TODO: Return the error code in a SubscriptionRequest message
-					// Ref: 3.5.1.1
-					context->TryCancel();
-					return Status(StatusCode::CANCELLED, grpc::string(
-												"SubscribeRequest needs non-empty SubscriptionList"));
-				}
+        if (!request.has_subscribe()) {
+          // TODO: Return the error code in a SubscriptionRequest message
+          // Ref: 3.5.1.1
+          context->TryCancel();
+          return Status(StatusCode::CANCELLED, grpc::string(
+                "SubscribeRequest needs non-empty SubscriptionList"));
+        }
 
-				switch (request.subscribe().mode()) {
-					case SubscriptionList_Mode_STREAM:
-						{
-							cout << "Received a STREAM SubscribeRequest" << endl;
+        switch (request.subscribe().mode()) {
+          case SubscriptionList_Mode_STREAM:
+            {
               cout << request.DebugString() << endl;
 
-							// Send first message: notification message
-							BuildNotification(request, response);
-              cout << "Sending the first update" << endl;
-							cout << response.DebugString() << endl;
-							stream->Write(response);
-							response.clear_response();
+              // Sends a Notification message that updates all Subcriptions
+              BuildNotification(request, response);
+              cout << response.DebugString() << endl;
+              stream->Write(response);
+              response.clear_response();
 
-							// Send second message: sync message
-							response.set_sync_response(true);
-              cout << "Sending sync response" << endl;
-							cout << response.DebugString() << endl;
-							stream->Write(response);
-							response.clear_response();
+              // Sends a message that indicates that initial synchronization
+              // has completed, i.e. each Subscription has been updated once
+              response.set_sync_response(true);
+              cout << response.DebugString() << endl;
+              stream->Write(response);
+              response.clear_response();
 
-							// Periodically updates paths that require SAMPLE updates
-							
-              // Associates each SAMPLE subscription to a chrono within a map
+              /* Periodically updates paths that require SAMPLE updates
+               * Note : There is only one Path per Subscription, but repeated
+               * Subscriptions in a SubscriptionList, each Subscription can
+               * have its own sample interval */
+
               vector<pair
                 <Subscription, time_point<system_clock>>> chronomap;
               for (int i=0; i<request.subscribe().subscription_size(); i++) {
@@ -104,14 +100,13 @@ class GNMIServer final : public gNMI::Service
                 }
               }
 
-              // Main loop that sends updates for paths whose chrono has expired
               while(!context->IsCancelled()) {
                 auto start = high_resolution_clock::now();
-                // Initializes the updateList
+
                 SubscribeRequest updateRequest(request);
                 SubscriptionList* updateList(updateRequest.mutable_subscribe());
                 updateList->clear_subscription();
-                // Fills the list with Subscriptions whose chrono has expired
+
                 for (int i=0; i<request.subscribe().subscription_size(); i++) {
                   unsigned long duration = duration_cast<nanoseconds> (
                       high_resolution_clock::now()-chronomap[i].second).count();
@@ -121,7 +116,7 @@ class GNMIServer final : public gNMI::Service
                     sub->CopyFrom(chronomap[i].first);
                   }
                 }
-                // Sends a single message that updates all paths of the list
+
                 if (updateList->subscription_size() > 0) {
                   BuildNotification(updateRequest, response);
                   cout << "Sending sampled update" << endl;
@@ -135,40 +130,37 @@ class GNMIServer final : public gNMI::Service
                 this_thread::sleep_for(milliseconds(200) - loopTime);
               }
 
-              cout << "Subscribe RPC call CANCELLED" << endl;
               break;
-						}
-					case SubscriptionList_Mode_ONCE:
-            cout << "Received a ONCE SubscribeRequest" << endl;
+            }
+          case SubscriptionList_Mode_ONCE:
             return Status(StatusCode::UNIMPLEMENTED,
-                          grpc::string("ONCE mode not implemented yet"));
+                grpc::string("ONCE mode not implemented yet"));
             break;
-					case SubscriptionList_Mode_POLL:
-            cout << "Received a POLL SubscribeRequest" << endl;
+          case SubscriptionList_Mode_POLL:
             return Status(StatusCode::UNIMPLEMENTED,
-                          grpc::string("POLL mode not implemented yet"));
+                grpc::string("POLL mode not implemented yet"));
             break;
-					default:
-						return Status(StatusCode::UNKNOWN,
-													grpc::string("Unkown mode"));
-				}
-			}
-			return Status::OK;
-		}
+          default:
+            return Status(StatusCode::UNKNOWN,
+                grpc::string("Unkown mode"));
+        }
+      }
+      return Status::OK;
+    }
 };
 
 void runServer()
 {
-	string server_address("0.0.0.0:50051");
-	GNMIServer service;
-	ServerBuilder builder;
-	builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-	builder.RegisterService(&service);
-	unique_ptr<Server> server(builder.BuildAndStart());
-	cout << "Server listening on " << server_address << endl;
-	server->Wait();
+  string server_address("0.0.0.0:50051");
+  GNMIServer service;
+  ServerBuilder builder;
+  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+  builder.RegisterService(&service);
+  unique_ptr<Server> server(builder.BuildAndStart());
+  cout << "Server listening on " << server_address << endl;
+  server->Wait();
 }
 
 int main (int argc, char* argv[]) {
-	runServer();
+  runServer();
 }
