@@ -53,6 +53,11 @@ void UnixtoGnmiPath(string unixp, Path* path)
   }
 }
 
+string GnmiToUnixPath(Path *path)
+{
+  return "todo";
+}
+
 /**
  * BuildNotification - build a Notification message to answer a SubscribeRequest.
  * @param request the SubscribeRequest to answer to.
@@ -97,14 +102,19 @@ void BuildNotification(
       notification->mutable_update();
     Update* update = updateList->Add();
     Path* path = update->mutable_path();
+    TypedValue* val = update->mutable_val();
 
     /* TODO: Fetch the value from the stat_api instead of hardcoding a fake one
-     * If succeeded Copy Request path into response path.
+     * If succeeded Copy Request path into response path. */
+    /* val can be:
+     * - an unsigned integer on 64 bits: for SCALAR and ERROR
+     * - a string:
+     * - A Scalar Array:
+     * - byte sequence value:
+     * - a json encoded text:
      */
-    path->CopyFrom(sub.path());
-
-    TypedValue* val = update->mutable_val();
     val->set_string_val("Test message number " + to_string(i));
+    path->CopyFrom(sub.path());
 
     update->set_duplicates(0);
   }

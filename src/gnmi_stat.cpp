@@ -100,15 +100,16 @@ int DisplayPatterns(u8 **patterns)
 int main (int argc, char **argv)
 {
   u8 **patterns = 0;
-  //vector<string> metrics{"/if", "/err", "/sys", "/err/udp6-input/"};
-  vector<string> metrics{"/err/udp6-input/"};
-  char socket_name[] = "/var/run/vpp/stats.sock";
+  vector<string> metrics{"/if", "/err", "/sys", "/err/udp6-input/"};
+  //vector<string> metrics{"/err/udp6-input/"};
+  char socket_name[] = STAT_SEGMENT_SOCKET_FILE;
   int rc;
 
   rc = stat_segment_connect(socket_name);
-  if (rc < 0)
+  if (rc < 0) {
     cerr << "can not connect to VPP STAT unix socket" << endl;
-  else
+    exit(1);
+  }  else
     cout << "Connected to STAT socket" << endl;
 
   patterns = CreatePatterns(metrics);
