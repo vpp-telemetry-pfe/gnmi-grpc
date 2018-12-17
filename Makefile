@@ -22,8 +22,16 @@ proto_obj=proto/gnmi_ext.pb.o proto/gnmi.pb.o proto/gnmi_ext.grpc.pb.o \
 
 all: gnmi_server
 
-gnmi_server: $(SRC)/gnmi_server.cpp $(proto_obj) $(SRC)/gnmi_encode.o
+gnmi_server: $(SRC)/gnmi_server.cpp $(proto_obj) $(SRC)/gnmi_encode.o $(SRC)/gnmi_handle_request.o
 	$(info ****** Compile and Link server ******)
+	$(MKDIR_P) $(BUILD)
+	$(CXX) $^ $(CXXFLAGS) $(LDFLAGS) -o $(BUILD)/$@
+
+gnmi_encode: $(SRC)/gnmi_encode.cpp $(proto_obj)
+	$(MKDIR_P) $(BUILD)
+	$(CXX) $^ $(CXXFLAGS) $(LDFLAGS) -o $(BUILD)/$@
+
+gnmi_handle_request: $(SRC)/gnmi_handle_request.cpp $(proto_obj)
 	$(MKDIR_P) $(BUILD)
 	$(CXX) $^ $(CXXFLAGS) $(LDFLAGS) -o $(BUILD)/$@
 
@@ -45,10 +53,3 @@ $(proto_obj): %.o: %.cc
 
 clean:
 	rm -rf $(BUILD) $(PROTOS_PATH)/*.pb.cc $(PROTOS_PATH)/*.pb.h $(PROTOS_PATH)/*.pb.o $(SRC)/*.o
-
-
-## For testing purposes
-
-gnmi_encode: $(SRC)/gnmi_encode.cpp $(proto_obj)
-	$(MKDIR_P) $(BUILD)
-	$(CXX) $^ $(CXXFLAGS) $(LDFLAGS) -o $(BUILD)/$@
