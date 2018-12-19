@@ -1,8 +1,9 @@
-// vim: softtabstop=2 shiftwidth=2 tabstop=2 expandtab:
+// vim: noai:ts=2:sw=2:tw=2:expandtab
 
-#include <vpp-api/client/stat_client.h>
+#include <vom/stat_client.hpp>
 #include <iostream>
 #include <vector>
+#include <memory>
 #include <string>
 #include <string.h>
 #include <stdlib.h>
@@ -11,114 +12,79 @@
 typedef unsigned int u32;
 typedef unsigned char u8;
 
+using VOM::stat_client;
 using namespace std;
 
-/* CreatePatterns - Create a VPP vector containing set of paths as parameter for
- * stat_segment_ls.
- * @param metrics Vector of UNIX paths to shared memory stats counters.
- * @return VPP vector containing UNIX paths or NULL in case of failure.
- */
-u8 ** CreatePatterns(vector<string> metrics)
-{
-  char * pattern = 0;
-  u8 **patterns = 0;
-
-  for (vector<string>::iterator it = metrics.begin(); it != metrics.end();
-      it++) {
-    pattern = strdup(it[0].c_str());
-    if (!pattern)
-      return NULL;
-
-    patterns = stat_segment_string_vector(patterns, pattern);
-    free(pattern);
-  }
-
-  return patterns;
-}
-
-/* FreePatterns - Free a VPP vector created with CreatePatterns.
- * @param patterns VPP vector containing UNIX path of stats counters.
- */
-void FreePatterns(u8 **patterns) {stat_segment_vec_free(patterns);}
-
 /* DisplayPatterns - Print counter values of a set of counter path.
- * @param patterns VPP vector containing UNIX path of stats counter.
  * @return -1=patterns not found ; 0=no problem faced
  */
-int DisplayPatterns(u8 **patterns)
+int DisplayPatterns(shared_ptr<stat_client> stat)
 {
-  stat_segment_data_t *res;
-  static u32 *stats = 0;
+  /* Fill in VPP vector of stat indexes for metrics to collect */
+  stat->ls();
 
-  do {
-    stats = stat_segment_ls(patterns);
-    if (!stats) {
-      cerr << "No pattern was found" << endl;
-      return -1;
-    }
+  /* vector<stat_data_t>, it is possible to have an empty vector in res */
+  stat_client::stat_data_vec_t res = stat->dump();
 
-    res = stat_segment_dump(stats);
-  } while (res == 0); /* Memory layout has changed */
-
-  for (int i = 0; i < stat_segment_vec_len(res); i++) {
-    switch (res[i].type) {
+  for (auto counter = res.begin(); counter != res.end(); counter++) {
+    switch (counter->type()) {
       case STAT_DIR_TYPE_COUNTER_VECTOR_SIMPLE:
-        for (int k = 0;
-             k < stat_segment_vec_len(res[i].simple_counter_vec);
-             k++)
-          for (int j = 0;
-               j < stat_segment_vec_len(res[i].simple_counter_vec[k]);
-               j++)
-            cout << res[i].simple_counter_vec[k][j] << endl;
+        {
+        cout << counter->name() << endl;
+        uint64_t **matrix = counter->get_stat_segment_simple_counter_data();
+        for (int k = 0; k < stat->vec_len(matrix); k++)
+          for (int j = 0; j < stat->vec_len(matrix[k]); j++)
+            cout << "thread, iface" << k << "," << j << ":"
+                 << matrix[k][j] << endl;
         break;
+        }
       case STAT_DIR_TYPE_COUNTER_VECTOR_COMBINED:
-        cout << res[i].name << endl;
-        for (int k = 0;
-             k < stat_segment_vec_len(res[i].combined_counter_vec);
-             k++)
-          for (int j = 0;
-               j < stat_segment_vec_len(res[i].combined_counter_vec[k]);
-               j++) {
-            cout << res[i].combined_counter_vec[k][j].packets
-                 << res[i].combined_counter_vec[k][j].bytes << endl;
+        {
+        cout << counter->name() << endl;
+        VOM::counter_t **matrix = counter->get_stat_segment_combined_counter_data();
+        for (int k = 0; k < stat->vec_len(matrix); k++)
+          for (int j = 0; j < stat->vec_len(matrix[k]); j++) {
+            cout << "thread,iface" << k << "," << j << ":"
+                 << matrix[k][j].packets << " "
+                 << matrix[k][j].bytes << endl;
           }
         break;
+        }
       case STAT_DIR_TYPE_ERROR_INDEX:
-        cout << res[i].name << " " << res[i].error_value << endl;
+        cout << counter->name() << " "
+             << counter->get_stat_segment_error_data() << endl;
         break;
       case STAT_DIR_TYPE_SCALAR_INDEX:
-        cout << res[i].name << " " << res[i].scalar_value << endl;
+        cout << counter->name() << " "
+             << counter->get_stat_segment_scalar_data() << endl;
         break;
       default:
         cerr << "Unknown value" << endl;
     }
   }
+
   return 0;
 }
 
 //For testing purpose only
 int main (int argc, char **argv)
 {
-  u8 **patterns = 0;
   vector<string> metrics{"/if", "/err", "/sys", "/err/udp6-input/"};
-  //vector<string> metrics{"/err/udp6-input/"};
-  char socket_name[] = STAT_SEGMENT_SOCKET_FILE;
+  shared_ptr<stat_client> stat(new stat_client(metrics));
   int rc;
 
-  rc = stat_segment_connect(socket_name);
+  /* connect to STAT_SEMGENT_SOCKET_FILE */
+  rc = stat->connect();
   if (rc < 0) {
     cerr << "can not connect to VPP STAT unix socket" << endl;
     exit(1);
-  }  else
+  }  else {
     cout << "Connected to STAT socket" << endl;
+  }
 
-  patterns = CreatePatterns(metrics);
-  if (!patterns)
-    return -ENOMEM;
-  DisplayPatterns(patterns);
-  FreePatterns(patterns);
+  DisplayPatterns(stat);
 
-  stat_segment_disconnect();
+  stat->disconnect();
   cout << "Disconnect STAT socket" << endl;
 
   return 0;
