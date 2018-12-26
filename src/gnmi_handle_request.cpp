@@ -29,14 +29,14 @@ Status handleStream(
   BuildNotification(request, response);
   cout << response.DebugString() << endl;
   stream->Write(response);
-  response.clear_response();
+  response.Clear();
 
   // Sends a SYNC message that indicates that initial synchronization
   // has completed, i.e. each Subscription has been updated once
   response.set_sync_response(true);
   cout << response.DebugString() << endl;
   stream->Write(response);
-  response.clear_response();
+  response.Clear();
 
   vector<pair<Subscription, time_point<system_clock>>> chronomap;
   for (int i=0; i<request.subscribe().subscription_size(); i++) {
@@ -78,7 +78,7 @@ Status handleStream(
       cout << "Sending sampled update" << endl;
       cout << response.DebugString() << endl;
       stream->Write(response);
-      response.clear_response();
+      response.Clear();
     }
 
     // Caps the loop at 5 iterations per second
@@ -102,14 +102,14 @@ Status handleOnce(
   BuildNotification(request, response);
   cout << response.DebugString() << endl;
   stream->Write(response);
-  response.clear_response();
+  response.Clear();
 
   // Sends a message that indicates that initial synchronization
   // has completed, i.e. each Subscription has been updated once
   response.set_sync_response(true);
   cout << response.DebugString() << endl;
   stream->Write(response);
-  response.clear_response();
+  response.Clear();
 
   context->TryCancel();
   return Status::OK;
@@ -133,7 +133,7 @@ Status handlePoll(
           BuildNotification(subscription, response);
           cout << response.DebugString() << endl;
           stream->Write(response);
-          response.clear_response();
+          response.Clear();
           break;
         }
       case request.kAliases:
@@ -150,7 +150,7 @@ Status handlePoll(
   return Status::OK;
 }
 
-/** 
+/**
   * Handles the first SubscribeRequest message.
   * If it does not have the "subscribe" field set, the RPC MUST be cancelled.
   * Ref: 3.5.1.1
