@@ -24,17 +24,7 @@ Go to docker directory.
 
 ```
 make clean
-docker build .
-```
-
-Run:
-====
-
-`docker run <n° docker image>`
-
-```
-docker ps
-docker run <n° process>
+docker-compose up
 ```
 
 ## Raw setup

@@ -1,0 +1,69 @@
+version: '3'
+services:
+  #Data visualizer
+  chronograf:
+    image: chronograf:alpine
+    command: --influxdb-url=http://influxdb:8086 --kapacitor-url=http://kapacitor:9092
+    ports: ["8888:8888"]
+
+  kapacitor:
+    image: kapacitor:alpine
+    environment:
+      - KAPACITOR_HOSTNAME=kapacitor
+      - KAPACITOR_INFLUXDB_0_URLS_0=http://influxdb:8086
+    ports: ["9093:9092"]
+
+  #Data store
+  influxdb:
+    image: influxdb:alpine
+    ports: ["8086:8086"]
+    environment:
+      - INFLUXDB_DB=telemetry
+      - INFLUXDB_ADMIN_PASSWORD=admin
+
+  #Data collector
+  pipeline-gnmi:
+    image: yohanpipereau/pipeline-gnmi
+    depends_on:
+      - vpp1
+    environment:
+      - PIPELINE_gnmi_stage=xport_input
+      - PIPELINE_gnmi_type=gnmi
+      - PIPELINE_gnmi_server=172.22.12.100:50051
+      - PIPELINE_gnmi_path1=/if/rx
+      - PIPELINE_gnmi_tls=false
+      - PIPELINE_gnmi_username=cisco
+      - PIPELINE_gnmi__password=cisco
+      - PIPELINE_metrics_stage=xport_output
+      - PIPELINE_metrics_type=metrics
+      - PIPELINE_metrics_file=/etc/pipeline/metrics.json
+      - PIPELINE_metrics_output=influx
+      - PIPELINE_metrics_influx=http://influxdb:8086
+      - PIPELINE_metrics_database=telemetry
+      - PIPELINE_metrics_username=admin
+      - PIPELINE_metrics__password=admin
+    networks:
+      default:
+
+      telemetry:
+        ipv4_address: 172.22.12.101
+
+  #VPP instance working with gNMI server
+  vpp1:
+    build: .
+    command: -f
+    ports: ["50051:50051"] #gRPC server port
+    networks:
+      default:
+
+      telemetry:
+        ipv4_address: 172.22.12.100
+
+
+networks:
+  default:
+
+  telemetry:
+    ipam:
+      config:
+        - subnet: 172.22.12.0/24
