@@ -1,4 +1,4 @@
-// vim: ts=2:sw=2:tw=2:expandtab
+// vim: noai:ts=2:sw=2:tw=2:expandtab
 
 #include <iostream>
 #include <vector>
@@ -19,42 +19,43 @@ using VOM::stat_client;
 using VOM::interface;
 using namespace std;
 
-/* DisplayCounters - Print counter values of a set of counter path. */
-void DisplayCounters(shared_ptr<stat_client> stat)
+/* DisplayPatterns - Print counter values of a set of counter path.
+ * @return -1=patterns not found ; 0=no problem faced
+ */
+int DisplayPatterns(shared_ptr<stat_client> stat)
 {
   /* Fill in VPP vector of stat indexes for metrics to collect */
   stat->ls();
 
-  /* Retrieve a vector of all counters matching indexes collected by ls */
+  /* vector<stat_data_t>, it is possible to have an empty vector in res */
   stat_client::stat_data_vec_t res = stat->dump();
 
-  /* Display all counters */
   for (auto counter : res) {
     switch (counter.type()) {
       case STAT_DIR_TYPE_COUNTER_VECTOR_SIMPLE:
         {
-        cout << counter.name() << "{" << endl;
+        cout << counter.name() << endl;
         uint64_t **matrix = counter.get_stat_segment_simple_counter_data();
         for (int k = 0; k < stat->vec_len(matrix); k++)
           for (int j = 0; j < stat->vec_len(matrix[k]); j++) {
-            cout << "\tinterface" << j << ":" << matrix[k][j] << endl;
+            cout << "interface" << j << ":"
+                 << matrix[k][j] << endl;
           }
-        cout << "}" << endl;
         break;
         }
       case STAT_DIR_TYPE_COUNTER_VECTOR_COMBINED:
         {
-        cout << counter.name() << "{" << endl;
-        VOM::counter_t **matrix =
-          counter.get_stat_segment_combined_counter_data();
+        cout << counter.name() << endl;
+        VOM::counter_t **matrix = counter.get_stat_segment_combined_counter_data();
         for (int k = 0; k < stat->vec_len(matrix); k++)
           for (int j = 0; j < stat->vec_len(matrix[k]); j++) {
-            cout << "\tinterface " << j << "{\n"
-                 << "\t\tpackets:" << matrix[k][j].packets << "\n"
-                 << "\t\tbytes:" << matrix[k][j].bytes << "\n"
-                 << "\t}" << endl;
+            for (auto itf = interface::cbegin(); itf != interface::cend(); itf++) {
+              cout << itf->second.lock()->name() << endl;
+            }
+            cout << "interface" << j << ":"
+                 << matrix[k][j].packets << " "
+                 << matrix[k][j].bytes << endl;
           }
-          cout << "}" << endl;
         break;
         }
       case STAT_DIR_TYPE_ERROR_INDEX:
@@ -69,6 +70,8 @@ void DisplayCounters(shared_ptr<stat_client> stat)
         cerr << "Unknown value" << endl;
     }
   }
+
+  return 0;
 }
 
 //For testing purpose only
@@ -81,26 +84,19 @@ int main (int argc, char **argv)
   VOM::HW::init(new VOM::HW::cmd_q());
   VOM::OM::init();
 
-  /* Connect to VPP STAT shared memory */
+  /* connect to VPP STAT shared memory */
   while (VOM::HW::connect() != true);
 
-  /* Populate the OM database with VPP HW interfaces with key __DISCOVERED__.
-   * It has to be event-based in order to be aware in case an interface is
-   * removed or created. */
+  /* populate the OM database with VPP HW interfaces with key __DISCOVERED__ */
   VOM::OM::populate("__DISCOVERED__");
-  for (auto itf = interface::cbegin(); itf != interface::cend(); itf++) {
-    cout << "Name:" << itf->second.lock()->name() << "\n" //name of iface
-         << "Handle:" << itf->second.lock()->handle() << "\n" //index in FIB
-         << "Type:" << itf->second.lock()->type() << "\n" //type
-         << "Key:" << itf->second.lock()->key() << endl; //key
-  } //TODO populate once then use events
 
-  DisplayCounters(stat);
+  DisplayPatterns(stat);
 
   /* Remove __DISCOVERED__ entries added with populate */
   VOM::OM::remove("__DISCOVERED__");
 
   VOM::HW::disconnect();
+  cout << "Disconnect STAT socket" << endl;
 
   return 0;
 }
