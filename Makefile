@@ -1,5 +1,5 @@
 CXX=g++
-CXXFLAGS=-Wall -Werror -O3 -std=c++11 -g
+CXXFLAGS=-Wall -Werror -O3 -std=c++11
 LDFLAGS=`pkg-config --libs protobuf grpc++ grpc`\
 	 -Wl,--no-as-needed -lgrpc++_reflection -Wl,--as-needed\
 	 -ldl -lpthread
@@ -30,7 +30,7 @@ gnmi_server: $(SRC)/gnmi_server.cpp $(proto_obj) $(SRC)/gnmi_encode.o $(SRC)/gnm
 #Requires to be compiled on a machine with VPP installed
 gnmi_stat: $(SRC)/gnmi_stat.cpp
 	$(MKDIR_P) $(BUILD)
-	$(CXX) $^ $(CXXFLAGS) -L/usr/lib/x86_64-linux-gnu -lvapiclient -lboost_system -lvom -o $(BUILD)/$@
+	$(CXX) $^ $(CXXFLAGS) -L/usr/lib/x86_64-linux-gnu -lvom -o $(BUILD)/$@
 
 #Static pattern rule (targets: target-pattern: prereq-patterns)
 $(proto_obj): %.pb.o: %.pb.cc
