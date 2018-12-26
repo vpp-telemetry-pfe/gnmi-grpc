@@ -1,5 +1,7 @@
 // vim: noai:ts=2:sw=2:tw=2:expandtab
 
+#include <vom/stat_client.hpp>
+#include <vom/interface.hpp>
 #include <iostream>
 #include <vector>
 #include <memory>
@@ -7,10 +9,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
-
-#include <vom/stat_client.hpp>
-#include <vom/interface.hpp>
-#include <vom/om.hpp>
 
 typedef unsigned int u32;
 typedef unsigned char u8;
@@ -50,7 +48,8 @@ int DisplayPatterns(shared_ptr<stat_client> stat)
         for (int k = 0; k < stat->vec_len(matrix); k++)
           for (int j = 0; j < stat->vec_len(matrix[k]); j++) {
             for (auto itf = interface::cbegin(); itf != interface::cend(); itf++) {
-              cout << itf->second.lock()->name() << endl;
+              cout << "tototootototototototototototototot"
+                << itf->second.lock()->name() << endl;
             }
             cout << "interface" << j << ":"
                  << matrix[k][j].packets << " "
@@ -79,23 +78,20 @@ int main (int argc, char **argv)
 {
   vector<string> metrics{"/if", "/err", "/sys", "/err/udp6-input/"};
   shared_ptr<stat_client> stat(new stat_client(metrics));
+  int rc;
 
-  /* Initialize a VOM client and object model */
-  VOM::HW::init(new VOM::HW::cmd_q());
-  VOM::OM::init();
-
-  /* connect to VPP STAT shared memory */
-  while (VOM::HW::connect() != true);
-
-  /* populate the OM database with VPP HW interfaces with key __DISCOVERED__ */
-  VOM::OM::populate("__DISCOVERED__");
+  /* connect to STAT_SEMGENT_SOCKET_FILE */
+  rc = stat->connect();
+  if (rc < 0) {
+    cerr << "can not connect to VPP STAT unix socket" << endl;
+    exit(1);
+  }  else {
+    cout << "Connected to STAT socket" << endl;
+  }
 
   DisplayPatterns(stat);
 
-  /* Remove __DISCOVERED__ entries added with populate */
-  VOM::OM::remove("__DISCOVERED__");
-
-  VOM::HW::disconnect();
+  stat->disconnect();
   cout << "Disconnect STAT socket" << endl;
 
   return 0;
