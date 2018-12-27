@@ -1,12 +1,17 @@
 // vim: softtabstop=2 shiftwidth=2 tabstop=2 expandtab:
 
-#include <vpp-api/client/stat_client.h>
 #include <iostream>
 #include <vector>
 #include <string>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+
+extern "C" {
+#include <vpp-api/client/stat_client.h>
+}
+#include <vapi/interface.api.vapi.hpp>
+#include <vapi/vapi.hpp>
 
 typedef unsigned int u32;
 typedef unsigned char u8;
@@ -96,12 +101,50 @@ int DisplayPatterns(u8 **patterns)
   return 0;
 }
 
+/*
+ * GetInterfaceDetails - RPC client interacting directly with VPP binary API.
+ */
+void GetInterfaceDetails() {
+	vapi::Connection con;
+	vapi_error_e rv;
+
+	/* Connect to VPP */
+	string app_name = "gnmi_server";
+	char *api_prefix = nullptr;
+	const int max_outstanding_requests = 32;
+	const int response_queue_size = 32;
+
+	rv = con.connect(app_name.c_str(), api_prefix, max_outstanding_requests,
+                   response_queue_size);
+	if (rv != VAPI_OK) {
+		cerr << "conn error" << endl;
+		return;
+	}
+
+	/* Create a RPC object */
+	vapi::Sw_interface_dump req(con);
+
+	/* send the request */
+	rv = req.execute();
+
+	con.wait_for_response(req);
+	for (auto it = req.get_result_set().begin(); it != req.get_result_set().end();
+      it++) {
+		cout << "sw_if_index: " << it->get_payload().sw_if_index << "\n"
+		     << "interface_name: " << it->get_payload().l2_address << "\n"
+		     << "MAC address: " << it->get_payload().interface_name
+		     << endl;
+	}
+
+	/* Disconnect */
+	con.disconnect();
+}
+
 //For testing purpose only
 int main (int argc, char **argv)
 {
   u8 **patterns = 0;
   vector<string> metrics{"/if", "/err", "/sys", "/err/udp6-input/"};
-  //vector<string> metrics{"/err/udp6-input/"};
   char socket_name[] = STAT_SEGMENT_SOCKET_FILE;
   int rc;
 
@@ -117,6 +160,8 @@ int main (int argc, char **argv)
     return -ENOMEM;
   DisplayPatterns(patterns);
   FreePatterns(patterns);
+
+  InterfaceDetails();
 
   stat_segment_disconnect();
   cout << "Disconnect STAT socket" << endl;
