@@ -101,43 +101,84 @@ int DisplayPatterns(u8 **patterns)
   return 0;
 }
 
-/*
- * GetInterfaceDetails - RPC client interacting directly with VPP binary API.
- */
-void GetInterfaceDetails() {
-	vapi::Connection con;
-	vapi_error_e rv;
+//////////////////////////////////////////////////////////////
 
-	/* Connect to VPP */
+/* Connect - Connect to VPP to use VPP API */
+void Connect(vapi::Connection& con) {
 	string app_name = "gnmi_server";
 	char *api_prefix = nullptr;
-	const int max_outstanding_requests = 32;
+	const int max_req = 32; /* max outstanding requests */
 	const int response_queue_size = 32;
+	vapi_error_e rv;
 
-	rv = con.connect(app_name.c_str(), api_prefix, max_outstanding_requests,
-                   response_queue_size);
+  rv = con.connect(app_name.c_str(), api_prefix, max_req, response_queue_size);
 	if (rv != VAPI_OK) {
 		cerr << "conn error" << endl;
-		return;
-	}
+    exit(1);
+  }
+}
 
-	/* Create a RPC object */
+/* Disconnect - Disconnect from VPP API */
+void Disconnect(vapi::Connection& con) {
+	con.disconnect();
+}
+
+/* GetInterfaceDetails - RPC client interacting directly with VPP binary API to
+ * collect interfaces names to send in telemetry messages.
+ */
+void GetInterfaceDetails(vapi::Connection& con) {
+  vapi_error_e rv;
+
+	/* Create a Dump object with vapi_msg_sw_interface_dump request and
+   * vapi_msg_sw_interface_details response */
 	vapi::Sw_interface_dump req(con);
 
 	/* send the request */
 	rv = req.execute();
+  if (rv != VAPI_OK)
+    cerr << "request error" << endl;
 
 	con.wait_for_response(req);
 	for (auto it = req.get_result_set().begin(); it != req.get_result_set().end();
       it++) {
 		cout << "sw_if_index: " << it->get_payload().sw_if_index << "\n"
-		     << "interface_name: " << it->get_payload().l2_address << "\n"
-		     << "MAC address: " << it->get_payload().interface_name
+		     << "interface_name: " << it->get_payload().interface_name << "\n"
+		     << "MAC address: " << it->get_payload().l2_address
 		     << endl;
 	}
+}
 
-	/* Disconnect */
-	con.disconnect();
+typedef vapi::Event_registration<vapi::Sw_interface_event> if_event;
+
+/* RegisterIfaceEvent - Ask for interface events using Want_interface_event
+ * messages. Interface events are sent when an interface is created but not
+ * when deleted. */
+void RegisterIfaceEvent(vapi::Connection& con) {
+	vapi_error_e rv;
+
+  /* Create an object with vapi_msg_want_interface_events request and
+   * vapi_msg_want_interface_events_reply */
+  vapi::Want_interface_events req(con);
+
+  /* Set Request fields to enable interface events */
+  req.get_request().get_payload().pid = getpid();
+  req.get_request().get_payload().enable_disable = 1;
+	cout << "pid: " << req.get_request().get_payload().pid << "\n"
+	     << "enable/disable: " << req.get_request().get_payload().enable_disable
+       << endl;
+
+  /* Send the request */
+	rv = req.execute();
+  if (rv != VAPI_OK)
+    cerr << "request error" << endl;
+
+	con.wait_for_response(req);
+
+  cout << "retvalue: " << req.get_response().get_payload().retval << endl;
+}
+
+void DisplayIfaceEvent(vapi::Connection &con) {
+  if_event ev(con, nullptr);
 }
 
 //For testing purpose only
@@ -161,7 +202,14 @@ int main (int argc, char **argv)
   DisplayPatterns(patterns);
   FreePatterns(patterns);
 
-  InterfaceDetails();
+  /* VPP API functions */
+	vapi::Connection con;
+  Connect(con);
+  GetInterfaceDetails(con);
+  RegisterIfaceEvent(con);
+  DisplayIfaceEvent(con);
+  sleep(10);
+  Disconnect(con);
 
   stat_segment_disconnect();
   cout << "Disconnect STAT socket" << endl;
