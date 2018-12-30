@@ -21,20 +21,20 @@ using google::protobuf::RepeatedPtrField;
  */
 vector<string> split( const string &str, const char &delim )
 {
-	typedef string::const_iterator iter;
-	iter beg = str.begin();
-	vector<string> tokens;
+  typedef string::const_iterator iter;
+  iter beg = str.begin();
+  vector<string> tokens;
 
-	while(beg != str.end()) {
-		iter temp = find(beg, str.end(), delim);
-		if(beg != str.end() && !string(beg,temp).empty())
-			tokens.push_back(string(beg, temp));
-		beg = temp;
-		while ((beg != str.end()) && (*beg == delim))
-			beg++;
-	}
+  while(beg != str.end()) {
+    iter temp = find(beg, str.end(), delim);
+    if(beg != str.end() && !string(beg,temp).empty())
+      tokens.push_back(string(beg, temp));
+    beg = temp;
+    while ((beg != str.end()) && (*beg == delim))
+      beg++;
+  }
 
-	return tokens;
+  return tokens;
 }
 
 /** 
@@ -44,13 +44,13 @@ vector<string> split( const string &str, const char &delim )
  */
 void UnixtoGnmiPath(string unixp, Path* path)
 {
-	vector<string> entries = split (unixp, '/');
+  vector<string> entries = split (unixp, '/');
 
-	for (auto const& entry : entries) {
-		PathElem *pathElem = path->add_elem();
-		pathElem->set_name(entry);
-		cout << entry << endl;
-	}
+  for (auto const& entry : entries) {
+    PathElem *pathElem = path->add_elem();
+    pathElem->set_name(entry);
+    cout << entry << endl;
+  }
 }
 
 /**
@@ -103,9 +103,9 @@ void BuildNotification(
  */
 //int main (int argc, char **argv)
 //{
-//	Path path;
+//  Path path;
 //
-//	UnixtoGnmiPath("/usr/local/bin", &path);
+//  UnixtoGnmiPath("/usr/local/bin", &path);
 //
-//	return 0;
+//  return 0;
 //}
