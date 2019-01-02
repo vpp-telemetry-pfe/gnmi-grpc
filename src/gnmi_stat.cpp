@@ -1,4 +1,4 @@
-// vim: softtabstop=2 shiftwidth=2 tabstop=2 expandtab:
+// vim: softtabstop=2 shiftwidth=2 tabstop=2 noexpandtab:
 
 #include <iostream>
 #include <vector>
@@ -124,8 +124,7 @@ void Disconnect(vapi::Connection& con) {
 }
 
 /* GetInterfaceDetails - RPC client interacting directly with VPP binary API to
- * collect interfaces names to send in telemetry messages.
- */
+ * collect interfaces names to send in telemetry messages. */
 void GetInterfaceDetails(vapi::Connection& con) {
   vapi_error_e rv;
 
@@ -147,8 +146,6 @@ void GetInterfaceDetails(vapi::Connection& con) {
 		     << endl;
 	}
 }
-
-typedef vapi::Event_registration<vapi::Sw_interface_event> if_event;
 
 /* RegisterIfaceEvent - Ask for interface events using Want_interface_event
  * messages. Interface events are sent when an interface is created but not
@@ -177,8 +174,28 @@ void RegisterIfaceEvent(vapi::Connection& con) {
   cout << "retvalue: " << req.get_response().get_payload().retval << endl;
 }
 
+typedef vapi::Event_registration<vapi::Sw_interface_event> if_event;
+
+vapi_error_e notify(if_event& ev) {
+  cout << "Reeeeeeeeeeeeeeeeeeceeeeeeeeeeeeeeeived" << endl;
+
+  for (auto it = ev.get_result_set().begin(); it != ev.get_result_set().end();
+        it++) {
+    cout << "id: "            << it->get_payload()._vl_msg_id << "\n"
+         << "sw_if_index: "   << it->get_payload().sw_if_index << "\n"
+         << "admin up/down: " << it->get_payload().admin_up_down << "\n"
+         << "link up/down: "  << it->get_payload().link_up_down << "\n"
+         << "deleted: "       << it->get_payload().deleted << "\n"
+         << endl;
+  }
+
+  return (VAPI_OK);
+}
+
+/* DisplayIfaceEvent - This must run inside a thread */
 void DisplayIfaceEvent(vapi::Connection &con) {
-  if_event ev(con, nullptr);
+  if_event ev(con, notify);
+  con.dispatch(ev);
 }
 
 //For testing purpose only
@@ -194,7 +211,7 @@ int main (int argc, char **argv)
     cerr << "can not connect to VPP STAT unix socket" << endl;
     exit(1);
   }  else
-    cout << "Connected to STAT socket" << endl;
+  cout << "Connected to STAT socket" << endl;
 
   patterns = CreatePatterns(metrics);
   if (!patterns)
@@ -208,7 +225,7 @@ int main (int argc, char **argv)
   GetInterfaceDetails(con);
   RegisterIfaceEvent(con);
   DisplayIfaceEvent(con);
-  sleep(10);
+  cout << "start sleeping" << endl;
   Disconnect(con);
 
   stat_segment_disconnect();
