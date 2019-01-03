@@ -63,13 +63,13 @@ Status handleStream(
     SubscriptionList* updateList(updateRequest.mutable_subscribe());
     updateList->clear_subscription();
 
-    for (int i=0; i<request.subscribe().subscription_size(); i++) {
+    for (auto it = chronomap.begin(); it != chronomap.end(); it++) {
       unsigned long duration = duration_cast<nanoseconds> (
-          high_resolution_clock::now()-chronomap[i].second).count();
-      if (duration > chronomap[i].first.sample_interval()) {
-        chronomap[i].second = high_resolution_clock::now();
+          high_resolution_clock::now()-it->second).count();
+      if (duration > it->first.sample_interval()) {
+        it->second = high_resolution_clock::now();
         Subscription* sub = updateList->add_subscription();
-        sub->CopyFrom(chronomap[i].first);
+        sub->CopyFrom(it->first);
       }
     }
 
