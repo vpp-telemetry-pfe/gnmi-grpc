@@ -14,48 +14,19 @@ using namespace std;
 using namespace chrono;
 using google::protobuf::RepeatedPtrField;
 
-/**
- * split - split string in substrings according to delimitor.
- * @param str the string to parse.
- * @param delim the dilimitation character.
+/* GnmiToUnixPath - Convert a GNMI Path to UNIX Path
+ * @param path the Gnmi Path
  */
-vector<string> split( const string &str, const char &delim )
+string GnmiToUnixPath(Path path)
 {
-  typedef string::const_iterator iter;
-  iter beg = str.begin();
-  vector<string> tokens;
+  string uxpath;
 
-  while(beg != str.end()) {
-    iter temp = find(beg, str.end(), delim);
-    if(beg != str.end() && !string(beg,temp).empty())
-      tokens.push_back(string(beg, temp));
-    beg = temp;
-    while ((beg != str.end()) && (*beg == delim))
-      beg++;
+  for (int i=0; i < path.elem_size(); i++) {
+    uxpath += "/";
+    uxpath += path.elem(i).name();
   }
 
-  return tokens;
-}
-
-/**
- * UnixtoGnmiPath - Convert a Unix Path to a GNMI Path.
- * @param unixp Unix path.
- * @param path Pointer to GNMI path.
- */
-void UnixtoGnmiPath(string unixp, Path* path)
-{
-  vector<string> entries = split (unixp, '/');
-
-  for (auto const& entry : entries) {
-    PathElem *pathElem = path->add_elem();
-    pathElem->set_name(entry);
-    cout << entry << endl;
-  }
-}
-
-string GnmiToUnixPath(Path *path)
-{
-  return "todo";
+  return uxpath;
 }
 
 /**
@@ -121,15 +92,3 @@ void BuildNotification(
 
   notification->set_atomic(false);
 }
-
-/**
- * For testing purposes only
- */
-//int main (int argc, char **argv)
-//{
-//  Path path;
-//
-//  UnixtoGnmiPath("/usr/local/bin", &path);
-//
-//  return 0;
-//}
