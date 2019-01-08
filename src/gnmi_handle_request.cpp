@@ -26,6 +26,17 @@ Status handleStream(
     ServerContext* context, SubscribeRequest request,
     ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
 {
+  // Checks that sample_interval values are not higher than 
+  // std::chrono::duration<long long, std::nano>::max().count() = 9223372036854775807
+  for (int i=0; i<request.subscribe().subscription_size(); i++) {
+    Subscription sub = request.subscribe().subscription(i);
+    if (sub.sample_interval() > duration<long long, std::nano>::max().count()) {
+      context->TryCancel();
+      return Status(StatusCode::INVALID_ARGUMENT, grpc::string(
+        "sample_interval must be less than 9223372036854775807 nanoseconds"));
+    }
+  }
+
   // Sends a first Notification message that updates all Subcriptions
   SubscribeResponse response;
   BuildNotification(request, response);
@@ -68,7 +79,8 @@ Status handleStream(
     updateList->clear_subscription();
 
     for (auto& pair : chronomap) {
-      auto duration = high_resolution_clock::now()-pair.second;
+      duration<long long, std::nano> duration = 
+        high_resolution_clock::now()-pair.second;
       if (duration > nanoseconds{pair.first.sample_interval()}) {
         pair.second = high_resolution_clock::now();
         Subscription* sub = updateList->add_subscription();
