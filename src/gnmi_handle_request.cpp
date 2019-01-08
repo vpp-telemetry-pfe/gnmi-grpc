@@ -1,3 +1,5 @@
+/*  vim:set softtabstop=2 shiftwidth=2 tabstop=2 expandtab: */
+
 #include <iostream>
 #include <memory>
 #include <chrono>
@@ -38,12 +40,14 @@ Status handleStream(
   stream->Write(response);
   response.Clear();
 
-  vector<pair<Subscription, time_point<system_clock>>> chronomap;
+  // We use a vector of pairs instead of a map as we are going to iterate more
+  // than we are going to retrieve specific keys.
+  vector<pair<Subscription, time_point<high_resolution_clock>>> chronomap;
   for (int i=0; i<request.subscribe().subscription_size(); i++) {
     Subscription sub = request.subscribe().subscription(i);
     switch (sub.mode()) {
       case SAMPLE:
-        chronomap.emplace_back(sub, system_clock::now());
+        chronomap.emplace_back(sub, high_resolution_clock::now());
         break;
       default:
         // TODO: Handle ON_CHANGE and TARGET_DEFINED modes
@@ -63,13 +67,12 @@ Status handleStream(
     SubscriptionList* updateList(updateRequest.mutable_subscribe());
     updateList->clear_subscription();
 
-    for (auto it = chronomap.begin(); it != chronomap.end(); it++) {
-      unsigned long duration = duration_cast<nanoseconds> (
-          high_resolution_clock::now()-it->second).count();
-      if (duration > it->first.sample_interval()) {
-        it->second = high_resolution_clock::now();
+    for (auto& pair : chronomap) {
+      auto duration = high_resolution_clock::now()-pair.second;
+      if (duration > nanoseconds{pair.first.sample_interval()}) {
+        pair.second = high_resolution_clock::now();
         Subscription* sub = updateList->add_subscription();
-        sub->CopyFrom(it->first);
+        sub->CopyFrom(pair.first);
       }
     }
 
@@ -150,11 +153,11 @@ Status handlePoll(
   return Status::OK;
 }
 
-/**
-  * Handles the first SubscribeRequest message.
-  * If it does not have the "subscribe" field set, the RPC MUST be cancelled.
-  * Ref: 3.5.1.1
-  */
+/** 
+ * Handles the first SubscribeRequest message.
+ * If it does not have the "subscribe" field set, the RPC MUST be cancelled.
+ * Ref: 3.5.1.1
+ */
 Status handleSubscribeRequest(ServerContext* context,
     ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
 {

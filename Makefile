@@ -27,14 +27,6 @@ gnmi_server: $(SRC)/gnmi_server.cpp $(proto_obj) $(SRC)/gnmi_encode.o $(SRC)/gnm
 	$(MKDIR_P) $(BUILD)
 	$(CXX) $^ $(CXXFLAGS) $(LDFLAGS) -o $(BUILD)/$@
 
-gnmi_encode: $(SRC)/gnmi_encode.cpp $(proto_obj)
-	$(MKDIR_P) $(BUILD)
-	$(CXX) $^ $(CXXFLAGS) $(LDFLAGS) -o $(BUILD)/$@
-
-gnmi_handle_request: $(SRC)/gnmi_handle_request.cpp $(proto_obj)
-	$(MKDIR_P) $(BUILD)
-	$(CXX) $^ $(CXXFLAGS) $(LDFLAGS) -o $(BUILD)/$@
-
 #Static pattern rule (targets: target-pattern: prereq-patterns)
 $(proto_obj): %.pb.o: %.pb.cc
 	$(info ****** Compile protobuf generated CPP files ******)
