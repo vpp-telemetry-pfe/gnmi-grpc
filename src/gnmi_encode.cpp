@@ -37,7 +37,7 @@ vector<string> split( const string &str, const char &delim )
   return tokens;
 }
 
-/** 
+/**
  * UnixtoGnmiPath - Convert a Unix Path to a GNMI Path.
  * @param unixp Unix path.
  * @param path Pointer to GNMI path.
@@ -71,14 +71,14 @@ void BuildNotification(
   if (request.subscribe().has_prefix()) {
     Path* prefix = notification->mutable_prefix();
     prefix->set_target(request.subscribe().prefix().target());
+    // set name of measurement
+    prefix->mutable_elem()->Add()->set_name("measurement1");
   }
-
-  // TODO : Notification.alias
 
   // repeated Notification.update
   for (int i=0; i<request.subscribe().subscription_size(); i++) {
     Subscription sub = request.subscribe().subscription(i);
-    RepeatedPtrField<Update>* updateList = 
+    RepeatedPtrField<Update>* updateList =
       notification->mutable_update();
     Update* update = updateList->Add();
 
@@ -91,8 +91,6 @@ void BuildNotification(
 
     update->set_duplicates(0);
   }
-
-  // TODO: Notification.delete
 
   // Notification.atomic
   notification->set_atomic(false);
