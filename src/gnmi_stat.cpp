@@ -13,6 +13,8 @@ extern "C" {
 #include <vapi/interface.api.vapi.hpp>
 #include <vapi/vapi.hpp>
 
+#include "gnmi_stat.h"
+
 typedef unsigned int u32;
 typedef unsigned char u8;
 
@@ -29,7 +31,7 @@ u8 ** CreatePatterns(vector<string> metrics)
   u8 **patterns = 0;
 
   for (string it : metrics) {
-    pattern = strdup(it[0].c_str());
+    pattern = strdup(it.c_str());
     if (!pattern)
       return NULL;
 
