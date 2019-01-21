@@ -31,11 +31,11 @@ string GnmiToUnixPath(Path path)
 
 /**
  * BuildNotification - build a Notification message to answer a SubscribeRequest.
- * @param request the SubscribeRequest to answer to.
+ * @param request the SubscriptionList from SubscribeRequest to answer to.
  * @param response the SubscribeResponse that is constructed by this function.
  */
 void BuildNotification(
-    const SubscribeRequest& request, SubscribeResponse& response)
+    const SubscriptionList& request, SubscribeResponse& response)
 {
   Notification *notification = response.mutable_update();
   RepeatedPtrField<Update>* updateList = notification->mutable_update();
@@ -46,9 +46,9 @@ void BuildNotification(
   notification->set_timestamp(ts.count());
 
   /* Notification message prefix based on SubscriptionList prefix */
-  if (request.subscribe().has_prefix()) {
+  if (request.has_prefix()) {
     Path* prefix = notification->mutable_prefix();
-    prefix->set_target(request.subscribe().prefix().target());
+    prefix->set_target(request.prefix().target());
     // set name of measurement
     prefix->mutable_elem()->Add()->set_name("measurement1");
   }
@@ -56,34 +56,25 @@ void BuildNotification(
   /* TODO : Path aliases defined by clients to access a long path.
    * We need to provide global variable with the list of aliases which can be
    * used only if use_aliases boolean is true in SubscriptionList. */
-  if (request.subscribe().use_aliases())
+  if (request.use_aliases())
     std::cerr << "Unsupported usage of aliases" << std::endl;
 
   /* TODO check if only updates should be sent
    * Require to implement a caching system to access last data sent. */
-  if (request.subscribe().updates_only())
+  if (request.updates_only())
     std::cerr << "Unsupported usage of Updates, every paths will be sent"
               << std::endl;
 
   /* Fill Update RepeatedPtrField in Notification message
    * Update field contains only data elements that have changed values. */
-  for (int i=0; i<request.subscribe().subscription_size(); i++) {
-    Subscription sub = request.subscribe().subscription(i);
-    RepeatedPtrField<Update>* updateList =
-      notification->mutable_update();
+  for (int i=0; i<request.subscription_size(); i++) {
+    Subscription sub = request.subscription(i);
     Update* update = updateList->Add();
     Path* path = update->mutable_path();
     TypedValue* val = update->mutable_val();
 
     /* TODO: Fetch the value from the stat_api instead of hardcoding a fake one
      * If succeeded Copy Request path into response path. */
-    /* val can be:
-     * - an unsigned integer on 64 bits: for SCALAR and ERROR
-     * - a string:
-     * - A Scalar Array:
-     * - byte sequence value:
-     * - a json encoded text:
-     */
     val->set_string_val("Test message number " + to_string(i));
     path->CopyFrom(sub.path());
 
