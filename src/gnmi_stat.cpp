@@ -28,8 +28,7 @@ u8 ** CreatePatterns(vector<string> metrics)
   char * pattern = 0;
   u8 **patterns = 0;
 
-  for (vector<string>::iterator it = metrics.begin(); it != metrics.end();
-      it++) {
+  for (string it : metrics) {
     pattern = strdup(it[0].c_str());
     if (!pattern)
       return NULL;
