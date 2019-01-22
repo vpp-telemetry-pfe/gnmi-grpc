@@ -26,7 +26,7 @@ Status handleStream(
     ServerContext* context, SubscribeRequest request,
     ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
 {
-  // Checks that sample_interval values are not higher than 
+  // Checks that sample_interval values are not higher than
   // std::chrono::duration<long long, std::nano>::max().count() = 9223372036854775807
   for (int i=0; i<request.subscribe().subscription_size(); i++) {
     Subscription sub = request.subscribe().subscription(i);
@@ -39,7 +39,7 @@ Status handleStream(
 
   // Sends a first Notification message that updates all Subcriptions
   SubscribeResponse response;
-  BuildNotification(request, response);
+  BuildNotification(request.subscribe(), response);
   cout << response.DebugString() << endl;
   stream->Write(response);
   response.Clear();
@@ -79,7 +79,7 @@ Status handleStream(
     updateList->clear_subscription();
 
     for (auto& pair : chronomap) {
-      duration<long long, std::nano> duration = 
+      duration<long long, std::nano> duration =
         high_resolution_clock::now()-pair.second;
       if (duration > nanoseconds{pair.first.sample_interval()}) {
         pair.second = high_resolution_clock::now();
@@ -89,7 +89,7 @@ Status handleStream(
     }
 
     if (updateList->subscription_size() > 0) {
-      BuildNotification(updateRequest, response);
+      BuildNotification(updateRequest.subscribe(), response);
       cout << "Sending sampled update" << endl;
       cout << response.DebugString() << endl;
       stream->Write(response);
@@ -114,7 +114,7 @@ Status handleOnce(
 {
   // Sends a Notification message that updates all Subcriptions once
   SubscribeResponse response;
-  BuildNotification(request, response);
+  BuildNotification(request.subscribe(), response);
   cout << response.DebugString() << endl;
   stream->Write(response);
   response.Clear();
@@ -145,7 +145,7 @@ Status handlePoll(
         {
           // Sends a Notification message that updates all Subcriptions once
           SubscribeResponse response;
-          BuildNotification(subscription, response);
+          BuildNotification(subscription.subscribe(), response);
           cout << response.DebugString() << endl;
           stream->Write(response);
           response.Clear();
@@ -165,7 +165,7 @@ Status handlePoll(
   return Status::OK;
 }
 
-/** 
+/**
  * Handles the first SubscribeRequest message.
  * If it does not have the "subscribe" field set, the RPC MUST be cancelled.
  * Ref: 3.5.1.1

@@ -8,102 +8,71 @@
 #include <iostream>
 
 #include "gnmi_encode.h"
+#include "gnmi_stat.h"
 
 using namespace gnmi;
 using namespace std;
 using namespace chrono;
 using google::protobuf::RepeatedPtrField;
 
-/**
- * split - split string in substrings according to delimitor.
- * @param str the string to parse.
- * @param delim the dilimitation character.
+/* GnmiToUnixPath - Convert a GNMI Path to UNIX Path
+ * @param path the Gnmi Path
  */
-vector<string> split( const string &str, const char &delim )
+string GnmiToUnixPath(Path path)
 {
-  typedef string::const_iterator iter;
-  iter beg = str.begin();
-  vector<string> tokens;
+  string uxpath;
 
-  while(beg != str.end()) {
-    iter temp = find(beg, str.end(), delim);
-    if(beg != str.end() && !string(beg,temp).empty())
-      tokens.push_back(string(beg, temp));
-    beg = temp;
-    while ((beg != str.end()) && (*beg == delim))
-      beg++;
+  for (int i=0; i < path.elem_size(); i++) {
+    uxpath += "/";
+    uxpath += path.elem(i).name();
   }
 
-  return tokens;
-}
-
-/**
- * UnixtoGnmiPath - Convert a Unix Path to a GNMI Path.
- * @param unixp Unix path.
- * @param path Pointer to GNMI path.
- */
-void UnixtoGnmiPath(string unixp, Path* path)
-{
-  vector<string> entries = split (unixp, '/');
-
-  for (auto const& entry : entries) {
-    PathElem *pathElem = path->add_elem();
-    pathElem->set_name(entry);
-    cout << entry << endl;
-  }
+  return uxpath;
 }
 
 /**
  * BuildNotification - build a Notification message to answer a SubscribeRequest.
- * @param request the SubscribeRequest to answer to.
+ * @param request the SubscriptionList from SubscribeRequest to answer to.
  * @param response the SubscribeResponse that is constructed by this function.
  */
 void BuildNotification(
-    const SubscribeRequest& request, SubscribeResponse& response)
+    const SubscriptionList& request, SubscribeResponse& response)
 {
   Notification *notification = response.mutable_update();
-
+  RepeatedPtrField<Update>* updateList = notification->mutable_update();
   milliseconds ts;
+
+  /* Get time since epoch in milliseconds */
   ts = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
   notification->set_timestamp(ts.count());
 
-  // Notification.prefix
-  if (request.subscribe().has_prefix()) {
+  /* Notification message prefix based on SubscriptionList prefix */
+  if (request.has_prefix()) {
     Path* prefix = notification->mutable_prefix();
-    prefix->set_target(request.subscribe().prefix().target());
+    prefix->set_target(request.prefix().target());
     // set name of measurement
     prefix->mutable_elem()->Add()->set_name("measurement1");
   }
 
-  // repeated Notification.update
-  for (int i=0; i<request.subscribe().subscription_size(); i++) {
-    Subscription sub = request.subscribe().subscription(i);
-    RepeatedPtrField<Update>* updateList =
-      notification->mutable_update();
-    Update* update = updateList->Add();
+  // Defined refer to a long Path by a shorter one: alias
+  if (request.use_aliases())
+    cerr << "Unsupported usage of aliases" << endl;
 
-    Path* path = update->mutable_path();
-    path->CopyFrom(sub.path());
+  /* TODO check if only updates should be sent
+   * Require to implement a caching system to access last data sent. */
+  if (request.updates_only())
+    cerr << "Unsupported usage of Updates, every paths will be sent"  << endl;
 
-    // TODO: Fetch the value from the stat_api instead of hardcoding a fake one
-    TypedValue* val = update->mutable_val();
-    val->set_string_val("Test message number " + to_string(i));
+  /* Fill Update RepeatedPtrField in Notification message
+   * Update field contains only data elements that have changed values. */
+  for (int i = 0; i < request.subscription_size(); i++) {
+    Subscription sub = request.subscription(i);
 
-    update->set_duplicates(0);
+    // Fetch all found counters value for a requested path
+    StatConnector stat = StatConnector();
+    cout << "Requested: " + GnmiToUnixPath(sub.path()) << endl;
+    stat.FillCounters(updateList, GnmiToUnixPath(sub.path()));
   }
 
-  // Notification.atomic
   notification->set_atomic(false);
 }
-
-/**
- * For testing purposes only
- */
-//int main (int argc, char **argv)
-//{
-//  Path path;
-//
-//  UnixtoGnmiPath("/usr/local/bin", &path);
-//
-//  return 0;
-//}
