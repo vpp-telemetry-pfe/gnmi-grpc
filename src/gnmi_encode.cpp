@@ -54,34 +54,24 @@ void BuildNotification(
     prefix->mutable_elem()->Add()->set_name("measurement1");
   }
 
-  /* TODO : Path aliases defined by clients to access a long path.
-   * We need to provide global variable with the list of aliases which can be
-   * used only if use_aliases boolean is true in SubscriptionList. */
+  // Defined refer to a long Path by a shorter one: alias
   if (request.use_aliases())
-    std::cerr << "Unsupported usage of aliases" << std::endl;
+    cerr << "Unsupported usage of aliases" << endl;
 
   /* TODO check if only updates should be sent
    * Require to implement a caching system to access last data sent. */
   if (request.updates_only())
-    std::cerr << "Unsupported usage of Updates, every paths will be sent"
-              << std::endl;
+    cerr << "Unsupported usage of Updates, every paths will be sent"  << endl;
 
   /* Fill Update RepeatedPtrField in Notification message
    * Update field contains only data elements that have changed values. */
-  for (int i=0; i<request.subscription_size(); i++) {
+  for (int i = 0; i < request.subscription_size(); i++) {
     Subscription sub = request.subscription(i);
-    Update* update = updateList->Add();
-    Path* path = update->mutable_path();
-    TypedValue* val = update->mutable_val();
 
-    /* TODO: Fetch the value from the stat_api instead of hardcoding a fake one
-     * If succeeded Copy Request path into response path. */
+    // Fetch all found counters value for a requested path
     StatConnector stat = StatConnector();
-    u8 **patterns = stat.CreatePatterns("/if");
-    stat.FillCounter(val, patterns);
-
-    path->CopyFrom(sub.path());
-    update->set_duplicates(0);
+    cout << "Requested: " + GnmiToUnixPath(sub.path()) << endl;
+    stat.FillCounters(updateList, GnmiToUnixPath(sub.path()));
   }
 
   notification->set_atomic(false);

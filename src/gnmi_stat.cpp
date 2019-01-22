@@ -16,28 +16,68 @@ extern "C" {
 #include "gnmi_stat.h"
 
 using namespace std;
+using namespace gnmi;
 
-/* CreatePatterns - Create a VPP vector containing set of paths as parameter for
+/**
+ * split - split string in substrings according to delimitor.
+ * @param str the string to parse.
+ * @param delim the dilimitation character.
+ */
+vector<string> split(const string &str, const char &delim)
+{
+  typedef string::const_iterator iter;
+  iter beg = str.begin();
+  vector<string> tokens;
+
+  while(beg != str.end()) {
+    iter temp = find(beg, str.end(), delim);
+    if(beg != str.end() && !string(beg,temp).empty())
+      tokens.push_back(string(beg, temp));
+    beg = temp;
+    while ((beg != str.end()) && (*beg == delim))
+      beg++;
+  }
+
+  return tokens;
+}
+
+/**
+ * UnixtoGnmiPath - Convert a Unix Path to a GNMI Path.
+ * @param unixp Unix path.
+ * @param path Pointer to GNMI path.
+ */
+void UnixToGnmiPath(string unixp, Path* path)
+{
+  vector<string> entries = split (unixp, '/');
+
+  for (auto const& entry : entries) {
+    PathElem *pathElem = path->add_elem();
+    pathElem->set_name(entry);
+  }
+}
+
+
+
+/* createPatterns - Create a VPP vector containing set of paths as parameter for
  * stat_segment_ls.
  * @param metric UNIX paths to shared memory stats counters.
  * @return VPP vector containing UNIX paths or NULL in case of failure.
  */
-u8 ** StatConnector::CreatePatterns(string metric)
+u8 ** createPatterns(string metric)
 {
   u8 **patterns = 0;
 
   patterns = stat_segment_string_vector(patterns, metric.c_str());
-  if (!patterns) {
+  if (!patterns)
     exit(-ENOMEM);
-  }
 
   return patterns;
 }
 
-/* FreePatterns - Free a VPP vector created with CreatePatterns.
+/* freePatterns - Free a VPP vector created with CreatePatterns.
  * @param patterns VPP vector containing UNIX path of stats counters.
  */
-void StatConnector::FreePatterns(u8 **patterns)
+void freePatterns(u8 **patterns)
 {
   stat_segment_vec_free(patterns);
 }
@@ -46,65 +86,70 @@ void StatConnector::FreePatterns(u8 **patterns)
  * @param val counter value answered to gNMI client
  * @param patterns VPP vector containing UNIX path of stats counter.
  */
-int StatConnector::FillCounter(gnmi::TypedValue *val, u8 **patterns)
+void StatConnector::FillCounters(RepeatedPtrField<Update> *list, string metric)
 {
   stat_segment_data_t *res;
-  static u32 *stats = 0;
+  u8 ** patterns = createPatterns(metric);
+  u32 *stats = 0;
 
   do {
     stats = stat_segment_ls(patterns);
     if (!stats) {
       cerr << "No pattern was found" << endl;
-      return -1;
+      return;
     }
 
     res = stat_segment_dump(stats);
   } while (res == 0); /* Memory layout has changed */
 
+  // Iterate over all subdirectories of requested path
   for (int i = 0; i < stat_segment_vec_len(res); i++) {
+    Update* update = list->Add();
+    // Answer with found path instead of requested path
+    UnixToGnmiPath(res[i].name, update->mutable_path());
+    TypedValue* val = update->mutable_val();
+    update->set_duplicates(0);
+
     switch (res[i].type) {
       case STAT_DIR_TYPE_COUNTER_VECTOR_SIMPLE:
         {
-          string tmp = res[i].name;
-          tmp.append(" ");
+          string tmp;
           for (int k = 0;
               k < stat_segment_vec_len(res[i].simple_counter_vec);
               k++)
             for (int j = 0;
                 j < stat_segment_vec_len(res[i].simple_counter_vec[k]);
                 j++)
-              tmp += res[i].simple_counter_vec[k][j];
+              tmp += to_string(res[i].simple_counter_vec[k][j]);
           val->set_string_val(tmp);
           break;
         }
       case STAT_DIR_TYPE_COUNTER_VECTOR_COMBINED:
         {
-          string tmp = res[i].name;
-          tmp.append(" ");
+          string tmp;
           for (int k = 0;
               k < stat_segment_vec_len(res[i].combined_counter_vec);
               k++)
             for (int j = 0;
                 j < stat_segment_vec_len(res[i].combined_counter_vec[k]);
                 j++) {
-              tmp += res[i].combined_counter_vec[k][j].packets;
+              tmp += to_string(res[i].combined_counter_vec[k][j].packets);
               tmp.append(" ");
-              tmp+=res[i].combined_counter_vec[k][j].bytes;
+              tmp += to_string(res[i].combined_counter_vec[k][j].bytes);
             }
           val->set_string_val(tmp);
           break;
         }
       case STAT_DIR_TYPE_ERROR_INDEX:
-        val->set_string_val(res[i].name + res[i].error_value);
+        val->set_string_val(to_string(res[i].error_value));
         break;
       case STAT_DIR_TYPE_SCALAR_INDEX:
-        val->set_string_val(res[i].name + std::to_string(res[i].scalar_value));
+        val->set_string_val(to_string(res[i].scalar_value));
         break;
       default:
         cerr << "Unknown value" << endl;
     }
   }
-  return 0;
 }
 
 /** Connect to VPP STAT API */
