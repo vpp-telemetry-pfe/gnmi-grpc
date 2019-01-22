@@ -56,8 +56,6 @@ void UnixToGnmiPath(string unixp, Path* path)
   }
 }
 
-
-
 /* createPatterns - Create a VPP vector containing set of paths as parameter for
  * stat_segment_ls.
  * @param metric UNIX paths to shared memory stats counters.
@@ -88,7 +86,7 @@ void freePatterns(u8 **patterns)
  */
 void StatConnector::FillCounters(RepeatedPtrField<Update> *list, string metric)
 {
-  stat_segment_data_t *res;
+  stat_segment_data_t *r;
   u8 ** patterns = createPatterns(metric);
   u32 *stats = 0;
 
@@ -99,52 +97,47 @@ void StatConnector::FillCounters(RepeatedPtrField<Update> *list, string metric)
       return;
     }
 
-    res = stat_segment_dump(stats);
-  } while (res == 0); /* Memory layout has changed */
+    r = stat_segment_dump(stats);
+  } while (r == 0); /* Memory layout has changed */
 
   // Iterate over all subdirectories of requested path
-  for (int i = 0; i < stat_segment_vec_len(res); i++) {
+  for (int i = 0; i < stat_segment_vec_len(r); i++) {
     Update* update = list->Add();
     // Answer with found path instead of requested path
-    UnixToGnmiPath(res[i].name, update->mutable_path());
+    UnixToGnmiPath(r[i].name, update->mutable_path());
     TypedValue* val = update->mutable_val();
     update->set_duplicates(0);
 
-    switch (res[i].type) {
+    switch (r[i].type) {
       case STAT_DIR_TYPE_COUNTER_VECTOR_SIMPLE:
         {
           string tmp;
-          for (int k = 0;
-              k < stat_segment_vec_len(res[i].simple_counter_vec);
-              k++)
-            for (int j = 0;
-                j < stat_segment_vec_len(res[i].simple_counter_vec[k]);
-                j++)
-              tmp += to_string(res[i].simple_counter_vec[k][j]);
+          int k = 0, j = 0;
+          for (; k < stat_segment_vec_len(r[i].simple_counter_vec); k++)
+            for (; j < stat_segment_vec_len(r[i].simple_counter_vec[k]); j++)
+              tmp += to_string(r[i].simple_counter_vec[k][j]);
           val->set_string_val(tmp);
           break;
         }
       case STAT_DIR_TYPE_COUNTER_VECTOR_COMBINED:
         {
           string tmp;
-          for (int k = 0;
-              k < stat_segment_vec_len(res[i].combined_counter_vec);
-              k++)
-            for (int j = 0;
-                j < stat_segment_vec_len(res[i].combined_counter_vec[k]);
-                j++) {
-              tmp += to_string(res[i].combined_counter_vec[k][j].packets);
+          int k = 0, j = 0;
+          for (; k < stat_segment_vec_len(r[i].combined_counter_vec); k++)
+            for (; j < stat_segment_vec_len(r[i].combined_counter_vec[k]); j++)
+            {
+              tmp += to_string(r[i].combined_counter_vec[k][j].packets);
               tmp.append(" ");
-              tmp += to_string(res[i].combined_counter_vec[k][j].bytes);
+              tmp += to_string(r[i].combined_counter_vec[k][j].bytes);
             }
           val->set_string_val(tmp);
           break;
         }
       case STAT_DIR_TYPE_ERROR_INDEX:
-        val->set_string_val(to_string(res[i].error_value));
+        val->set_int_val(r[i].error_value);
         break;
       case STAT_DIR_TYPE_SCALAR_INDEX:
-        val->set_string_val(to_string(res[i].scalar_value));
+        val->set_int_val(r[i].scalar_value);
         break;
       default:
         cerr << "Unknown value" << endl;
