@@ -4,8 +4,6 @@
 #include <memory>
 #include <chrono>
 #include <thread>
-
-#include <pthread.h>
 #include <getopt.h>
 
 #include <grpc/grpc.h>
@@ -14,7 +12,6 @@
 #include <google/protobuf/repeated_field.h>
 
 #include "../proto/gnmi.grpc.pb.h"
-#include "gnmi_encode.h"
 #include "gnmi_security.h"
 #include "gnmi_handle_request.h"
 
@@ -52,8 +49,11 @@ class GNMIServer final : public gNMI::Service
     Status Subscribe(ServerContext* context,
         ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
     {
-      return handleSubscribeRequest(context, stream);
+      return reqH.handleSubscribeRequest(context, stream);
     }
+
+  private:
+    RequestHandler reqH;
 };
 
 void RunServer(ServerSecurityContext *cxt)

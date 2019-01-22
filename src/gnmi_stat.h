@@ -30,9 +30,9 @@ class VapiConnector {
     VapiConnector();
     ~VapiConnector();
 
-  void GetInterfaceDetails();
-  void RegisterIfaceEvent();
-  void DisplayIfaceEvent();
+    void GetInterfaceDetails();
+    void RegisterIfaceEvent();
+    void DisplayIfaceEvent();
 
   private:
     Connection con;

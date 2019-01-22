@@ -11,7 +11,7 @@
 #include <grpcpp/server_builder.h>
 
 #include "../proto/gnmi.grpc.pb.h"
-#include "gnmi_stat.h"
+#include "gnmi_handle_request.h"
 
 using namespace grpc;
 using namespace gnmi;
@@ -39,7 +39,7 @@ string GnmiToUnixPath(Path path)
  * @param request the SubscriptionList from SubscribeRequest to answer to.
  * @param response the SubscribeResponse that is constructed by this function.
  */
-void BuildNotification(
+void RequestHandler::BuildNotification(
     const SubscriptionList& request, SubscribeResponse& response)
 {
   Notification *notification = response.mutable_update();
@@ -73,9 +73,8 @@ void BuildNotification(
     Subscription sub = request.subscription(i);
 
     // Fetch all found counters value for a requested path
-    StatConnector stat = StatConnector();
     cout << "Requested: " + GnmiToUnixPath(sub.path()) << endl;
-    stat.FillCounters(updateList, GnmiToUnixPath(sub.path()));
+    statc.FillCounters(updateList, GnmiToUnixPath(sub.path()));
   }
 
   notification->set_atomic(false);
@@ -85,7 +84,7 @@ void BuildNotification(
  * Handles SubscribeRequest messages with STREAM subscription mode by
  * periodically sending updates to the client.
  */
-Status handleStream(
+Status RequestHandler::handleStream(
     ServerContext* context, SubscribeRequest request,
     ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
 {
@@ -171,7 +170,7 @@ Status handleStream(
  * Handles SubscribeRequest messages with ONCE subscription mode by updating
  * all the Subscriptions once, sending a SYNC message, then closing the RPC.
  */
-Status handleOnce(
+Status RequestHandler::handleOnce(
     ServerContext* context, SubscribeRequest request,
     ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
 {
@@ -197,7 +196,7 @@ Status handleOnce(
  * Handles SubscribeRequest messages with POLL subscription mode by updating
  * all the Subscriptions each time a Poll request in received.
  */
-Status handlePoll(
+Status RequestHandler::handlePoll(
     ServerContext* context, SubscribeRequest request,
     ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
 {
@@ -233,7 +232,7 @@ Status handlePoll(
  * If it does not have the "subscribe" field set, the RPC MUST be cancelled.
  * Ref: 3.5.1.1
  */
-Status handleSubscribeRequest(ServerContext* context,
+Status RequestHandler::handleSubscribeRequest(ServerContext* context,
     ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
 {
   SubscribeRequest request;

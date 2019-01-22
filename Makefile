@@ -16,8 +16,7 @@ BUILD=build
 TEST=test
 MKDIR_P=mkdir -p
 PROTOS_PATH=proto
-OBJ=$(SRC)/gnmi_encode.o $(SRC)/gnmi_security.o $(SRC)/gnmi_handle_request.o \
-    $(SRC)/gnmi_stat.o
+OBJ=$(SRC)/gnmi_security.o $(SRC)/gnmi_handle_request.o $(SRC)/gnmi_stat.o
 
 proto_obj=proto/gnmi_ext.pb.o proto/gnmi.pb.o proto/gnmi_ext.grpc.pb.o \
 	  proto/gnmi.grpc.pb.o
