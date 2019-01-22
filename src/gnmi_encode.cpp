@@ -8,6 +8,7 @@
 #include <iostream>
 
 #include "gnmi_encode.h"
+#include "gnmi_stat.h"
 
 using namespace gnmi;
 using namespace std;
@@ -75,9 +76,11 @@ void BuildNotification(
 
     /* TODO: Fetch the value from the stat_api instead of hardcoding a fake one
      * If succeeded Copy Request path into response path. */
-    val->set_string_val("Test message number " + to_string(i));
-    path->CopyFrom(sub.path());
+    StatConnector stat = StatConnector();
+    u8 **patterns = stat.CreatePatterns("/if");
+    stat.FillCounter(val, patterns);
 
+    path->CopyFrom(sub.path());
     update->set_duplicates(0);
   }
 
