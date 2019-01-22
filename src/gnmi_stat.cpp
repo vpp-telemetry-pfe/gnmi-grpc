@@ -10,8 +10,6 @@
 extern "C" {
 #include <vpp-api/client/stat_client.h>
 }
-#include <vapi/interface.api.vapi.hpp>
-#include <vapi/vapi.hpp>
 
 #include "gnmi_stat.h"
 
@@ -166,10 +164,9 @@ StatConnector::~StatConnector()
 }
 
 //////////////////////////////////////////////////////////////
-// This part is about VPP API to handle conversion of indexes to interface name
 
 /* Connect - Connect to VPP to use VPP API */
-void Connect(vapi::Connection& con) {
+VapiConnector::VapiConnector() {
   string app_name = "gnmi_server";
   char *api_prefix = nullptr;
   const int max_req = 32; /* max outstanding requests */
@@ -178,59 +175,52 @@ void Connect(vapi::Connection& con) {
 
   rv = con.connect(app_name.c_str(), api_prefix, max_req, response_queue_size);
   if (rv != VAPI_OK) {
-    cerr << "conn error" << endl;
+    cerr << "Error connecting to VPP API" << endl;
     exit(1);
   }
 }
 
 /* Disconnect - Disconnect from VPP API */
-void Disconnect(vapi::Connection& con) {
+VapiConnector::~VapiConnector() {
   con.disconnect();
 }
 
 /* GetInterfaceDetails - RPC client interacting directly with VPP binary API to
  * collect interfaces names to send in telemetry messages. */
-void GetInterfaceDetails(vapi::Connection& con) {
+void VapiConnector::GetInterfaceDetails() {
   vapi_error_e rv;
 
-  /* Create a Dump object with vapi_msg_sw_interface_dump request and
-   * vapi_msg_sw_interface_details response */
+  //Dump: requ=vapi_msg_sw_interface_dump; resp=vapi_msg_sw_interface_details
   vapi::Sw_interface_dump req(con);
 
-  /* send the request */
-  rv = req.execute();
+  rv = req.execute(); //send request
   if (rv != VAPI_OK)
     cerr << "request error" << endl;
 
   con.wait_for_response(req);
-  for (auto it = req.get_result_set().begin(); it != req.get_result_set().end();
-      it++) {
-    cout << "sw_if_index: " << it->get_payload().sw_if_index << "\n"
-      << "interface_name: " << it->get_payload().interface_name << "\n"
-      << "MAC address: " << it->get_payload().l2_address
-      << endl;
+  for (auto& ifMsg : req.get_result_set()) {
+    cout << "sw_if_index: "    << ifMsg.get_payload().sw_if_index << "\n"
+         << "interface_name: " << ifMsg.get_payload().interface_name << "\n"
+         << "MAC address: "    << ifMsg.get_payload().l2_address
+         << endl;
   }
 }
 
 /* RegisterIfaceEvent - Ask for interface events using Want_interface_event
  * messages. Interface events are sent when an interface is created but not
  * when deleted. */
-void RegisterIfaceEvent(vapi::Connection& con) {
+void VapiConnector::RegisterIfaceEvent() {
   vapi_error_e rv;
 
-  /* Create an object with vapi_msg_want_interface_events request and
-   * vapi_msg_want_interface_events_reply */
+  /* Event registering: req:vapi_msg_want_interface_events;
+   * resp: vapi_msg_want_interface_events_reply */
   vapi::Want_interface_events req(con);
 
-  /* Set Request fields to enable interface events */
+  // Enable events and fill PID request field
   req.get_request().get_payload().pid = getpid();
   req.get_request().get_payload().enable_disable = 1;
-  cout << "pid: " << req.get_request().get_payload().pid << "\n"
-    << "enable/disable: " << req.get_request().get_payload().enable_disable
-    << endl;
 
-  /* Send the request */
-  rv = req.execute();
+  rv = req.execute(); // send request
   if (rv != VAPI_OK)
     cerr << "request error" << endl;
 
@@ -239,63 +229,61 @@ void RegisterIfaceEvent(vapi::Connection& con) {
   cout << "retvalue: " << req.get_response().get_payload().retval << endl;
 }
 
-typedef vapi::Event_registration<vapi::Sw_interface_event> if_event;
-
+/* Callback for Sw_interface_event */
 vapi_error_e notify(if_event& ev) {
   cout << "Reeeeeeeeeeeeeeeeeeceeeeeeeeeeeeeeeived" << endl;
 
-  for (auto it = ev.get_result_set().begin(); it != ev.get_result_set().end();
-      it++) {
-    cout << "id: "            << it->get_payload()._vl_msg_id << "\n"
-      << "sw_if_index: "   << it->get_payload().sw_if_index << "\n"
-      << "admin up/down: " << it->get_payload().admin_up_down << "\n"
-      << "link up/down: "  << it->get_payload().link_up_down << "\n"
-      << "deleted: "       << it->get_payload().deleted << "\n"
-      << endl;
+  for (auto& ifMsg : ev.get_result_set()) {
+    cout << "id: "            << ifMsg.get_payload()._vl_msg_id << "\n"
+         << "sw_if_index: "   << ifMsg.get_payload().sw_if_index << "\n"
+         << "admin up/down: " << ifMsg.get_payload().admin_up_down << "\n"
+         << "link up/down: "  << ifMsg.get_payload().link_up_down << "\n"
+         << "deleted: "       << ifMsg.get_payload().deleted << "\n"
+         << endl;
   }
 
   return (VAPI_OK);
 }
 
 /* DisplayIfaceEvent - This must run inside a thread */
-void DisplayIfaceEvent(vapi::Connection &con) {
+void VapiConnector::DisplayIfaceEvent() {
   if_event ev(con, notify);
   con.dispatch(ev);
 }
 
 //For testing purpose only
 /*
-   int main (int argc, char **argv)
-   {
-   u8 **patterns = 0;
-   string metric{"/if"};
-   char socket_name[] = STAT_SEGMENT_SOCKET_FILE;
-   int rc;
+int main (int argc, char **argv)
+{
+  u8 **patterns = 0;
+  string metric{"/if"};
+  char socket_name[] = STAT_SEGMENT_SOCKET_FILE;
+  int rc;
 
-   rc = stat_segment_connect(socket_name);
-   if (rc < 0) {
-   cerr << "can not connect to VPP STAT unix socket" << endl;
-   exit(1);
-   }
-   cout << "Connected to STAT socket" << endl;
+  rc = stat_segment_connect(socket_name);
+  if (rc < 0) {
+  cerr << "can not connect to VPP STAT unix socket" << endl;
+  exit(1);
+  }
+  cout << "Connected to STAT socket" << endl;
 
-   patterns = CreatePatterns(metric);
-   if (!patterns)
-   return -ENOMEM;
-   DisplayPatterns(patterns);
-   FreePatterns(patterns);
+  patterns = CreatePatterns(metric);
+  if (!patterns)
+  return -ENOMEM;
+  DisplayPatterns(patterns);
+  FreePatterns(patterns);
 
-// VPP API functions
-vapi::Connection con;
-Connect(con);
-GetInterfaceDetails(con);
-RegisterIfaceEvent(con);
-DisplayIfaceEvent(con);
-cout << "start sleeping" << endl;
-Disconnect(con);
+  // VPP API functions
+  vapi::Connection con;
+  Connect(con);
+  GetInterfaceDetails(con);
+  RegisterIfaceEvent(con);
+  DisplayIfaceEvent(con);
+  cout << "start sleeping" << endl;
+  Disconnect(con);
 
-stat_segment_disconnect();
-cout << "Disconnect STAT socket" << endl;
+  stat_segment_disconnect();
+  cout << "Disconnect STAT socket" << endl;
 
-return 0;
+  return 0;
 } */
