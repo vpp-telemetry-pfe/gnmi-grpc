@@ -3,6 +3,7 @@
 typedef unsigned int u32;
 typedef unsigned char u8;
 
+#include <map>
 #include <vapi/interface.api.vapi.hpp>
 #include <vapi/vapi.hpp>
 #include "../proto/gnmi.grpc.pb.h"
@@ -35,4 +36,5 @@ class VapiConnector {
 
   private:
     Connection con;
+    std::map <u32, std::string> ifMap; //Map of sw_if_index, interface_name
 };
