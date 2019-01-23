@@ -13,11 +13,9 @@ GRPC_CPP_PLUGIN_PATH ?= `which $(GRPC_CPP_PLUGIN)`
 SRC=src
 INC=include
 BUILD=build
-TEST=test
 MKDIR_P=mkdir -p
 PROTOS_PATH=proto
-OBJ=$(SRC)/gnmi_encode.o $(SRC)/gnmi_security.o $(SRC)/gnmi_handle_request.o \
-    $(SRC)/gnmi_stat.o
+OBJ=$(SRC)/gnmi_security.o $(SRC)/gnmi_handle_request.o $(SRC)/gnmi_collector.o
 
 proto_obj=proto/gnmi_ext.pb.o proto/gnmi.pb.o proto/gnmi_ext.grpc.pb.o \
 	  proto/gnmi.grpc.pb.o
@@ -30,11 +28,6 @@ gnmi_server: $(SRC)/gnmi_server.cpp $(proto_obj) $(OBJ)
 	$(info ****** Compile and Link server ******)
 	$(MKDIR_P) $(BUILD)
 	$(CXX) $^ $(CXXFLAGS) $(LDFLAGS) $(LDSTATFLAGS) -o $(BUILD)/$@
-
-#Requires to be compiled on a machine with VPP installed
-gnmi_stat: $(SRC)/gnmi_stat.cpp
-	$(MKDIR_P) $(BUILD)
-	$(CXX) $^ $(CXXFLAGS) -o $(BUILD)/$@
 
 #Static pattern rule (targets: target-pattern: prereq-patterns)
 $(proto_obj): %.pb.o: %.pb.cc

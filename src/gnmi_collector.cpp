@@ -11,7 +11,7 @@ extern "C" {
 #include <vpp-api/client/stat_client.h>
 }
 
-#include "gnmi_stat.h"
+#include "gnmi_collector.h"
 
 using namespace std;
 using namespace gnmi;
@@ -78,7 +78,22 @@ void freePatterns(u8 **patterns)
   stat_segment_vec_free(patterns);
 }
 
-/** FillCounter - Fill val with counter value collected with STAT API
+/* addIntCounter - Add a new Update in Notification answer with uint64 value
+ * @param list Update List of Notification answer
+ * @param path Unix Path of the counter
+ * @param value counter value on 64 bits
+ */
+static inline void
+addIntCounter(RepeatedPtrField<Update> *list, string path, uint64_t value)
+{
+    Update* update = list->Add();
+
+    UnixToGnmiPath(path, update->mutable_path());
+    update->mutable_val()->set_int_val(value);
+    update->set_duplicates(0);
+}
+
+/** FillCounters - Fill val with counter value collected with STAT API
  * @param val counter value answered to gNMI client
  * @param patterns VPP vector containing UNIX path of stats counter.
  */
@@ -100,42 +115,40 @@ void StatConnector::FillCounters(RepeatedPtrField<Update> *list, string metric)
 
   // Iterate over all subdirectories of requested path
   for (int i = 0; i < stat_segment_vec_len(r); i++) {
-    Update* update = list->Add();
-    // Answer with found path instead of requested path
-    UnixToGnmiPath(r[i].name, update->mutable_path());
-    TypedValue* val = update->mutable_val();
-    update->set_duplicates(0);
-
     switch (r[i].type) {
       case STAT_DIR_TYPE_COUNTER_VECTOR_SIMPLE:
         {
-          string tmp;
           int k = 0, j = 0;
           for (; k < stat_segment_vec_len(r[i].simple_counter_vec); k++)
-            for (; j < stat_segment_vec_len(r[i].simple_counter_vec[k]); j++)
-              tmp += to_string(r[i].simple_counter_vec[k][j]);
-          val->set_string_val(tmp);
+            for (; j < stat_segment_vec_len(r[i].simple_counter_vec[k]); j++) {
+              //path = counter + ifacename + thread num
+              string path (r[i].name);
+              path += '/' + VapiConnector::ifMap[j] + "/T" + to_string(k);
+              addIntCounter(list, path, r[i].simple_counter_vec[k][j]);
+            }
           break;
         }
       case STAT_DIR_TYPE_COUNTER_VECTOR_COMBINED:
         {
-          string tmp;
           int k = 0, j = 0;
           for (; k < stat_segment_vec_len(r[i].combined_counter_vec); k++)
             for (; j < stat_segment_vec_len(r[i].combined_counter_vec[k]); j++)
             {
-              tmp += to_string(r[i].combined_counter_vec[k][j].packets);
-              tmp.append(" ");
-              tmp += to_string(r[i].combined_counter_vec[k][j].bytes);
+              //path = counter + ifacename + thread num
+              string path (r[i].name);
+              path += '/' + VapiConnector::ifMap[j] + "/T" + to_string(k);
+              addIntCounter(list, path + "/packets",
+                  r[i].combined_counter_vec[k][j].packets);
+              addIntCounter(list, path + "/bytes",
+                  r[i].combined_counter_vec[k][j].bytes);
             }
-          val->set_string_val(tmp);
           break;
         }
       case STAT_DIR_TYPE_ERROR_INDEX:
-        val->set_int_val(r[i].error_value);
+        addIntCounter(list, r[i].name, r[i].error_value);
         break;
       case STAT_DIR_TYPE_SCALAR_INDEX:
-        val->set_int_val(r[i].scalar_value);
+        addIntCounter(list, r[i].name, r[i].scalar_value);
         break;
       default:
         cerr << "Unknown value" << endl;
@@ -185,9 +198,13 @@ VapiConnector::~VapiConnector() {
   con.disconnect();
 }
 
-/* GetInterfaceDetails - RPC client interacting directly with VPP binary API to
- * collect interfaces names to send in telemetry messages. */
-void VapiConnector::GetInterfaceDetails() {
+std::map <u32, std::string> VapiConnector::ifMap;
+
+/* GetInterfaceDetails - Perform a dump information to fill map between
+ * interfaces index and interfaces name.
+ */
+void VapiConnector::GetInterfaceDetails()
+{
   vapi_error_e rv;
 
   //Dump: requ=vapi_msg_sw_interface_dump; resp=vapi_msg_sw_interface_details
@@ -199,91 +216,57 @@ void VapiConnector::GetInterfaceDetails() {
 
   con.wait_for_response(req);
   for (auto& ifMsg : req.get_result_set()) {
-    cout << "sw_if_index: "    << ifMsg.get_payload().sw_if_index << "\n"
-         << "interface_name: " << ifMsg.get_payload().interface_name << "\n"
-         << "MAC address: "    << ifMsg.get_payload().l2_address
-         << endl;
+    u32 index = ifMsg.get_payload().sw_if_index;
+    string name ((char *)ifMsg.get_payload().interface_name);
+    //Change '/' in '_' not to mistake with path delimiter
+    std::replace(name.begin(), name.end(), '/', '_');
+    ifMap.insert(pair<u32, string>(index, name));
   }
+  needUpdate = false;
+}
+
+/* Callback for Sw_interface_event executed when event is received */
+vapi_error_e VapiConnector::notify(if_event& ev)
+{
+  ev.get_result_set().free_all_responses(); //delete all events
+  needUpdate = true; // after dispatch ends, it will launch dump
+  return (VAPI_OK);
 }
 
 /* RegisterIfaceEvent - Ask for interface events using Want_interface_event
- * messages. Interface events are sent when an interface is created but not
- * when deleted. */
+ * messages sending vapi_msg_want_interface_events msg and receiving
+ * vapi_msg_want_interface_events_reply. Then, thread loop collect events.
+ * Interface events are sent for interface creation but not deletion.
+ */
 void VapiConnector::RegisterIfaceEvent() {
   vapi_error_e rv;
 
-  /* Event registering: req:vapi_msg_want_interface_events;
-   * resp: vapi_msg_want_interface_events_reply */
+  /* Register for interface events */
   vapi::Want_interface_events req(con);
-
   // Enable events and fill PID request field
   req.get_request().get_payload().pid = getpid();
   req.get_request().get_payload().enable_disable = 1;
 
   rv = req.execute(); // send request
-  if (rv != VAPI_OK)
+  if (rv != VAPI_OK) {
     cerr << "request error" << endl;
+    exit(rv);
+  }
 
   con.wait_for_response(req);
 
-  cout << "retvalue: " << req.get_response().get_payload().retval << endl;
-}
-
-/* Callback for Sw_interface_event */
-vapi_error_e notify(if_event& ev) {
-  cout << "Reeeeeeeeeeeeeeeeeeceeeeeeeeeeeeeeeived" << endl;
-
-  for (auto& ifMsg : ev.get_result_set()) {
-    cout << "id: "            << ifMsg.get_payload()._vl_msg_id << "\n"
-         << "sw_if_index: "   << ifMsg.get_payload().sw_if_index << "\n"
-         << "admin up/down: " << ifMsg.get_payload().admin_up_down << "\n"
-         << "link up/down: "  << ifMsg.get_payload().link_up_down << "\n"
-         << "deleted: "       << ifMsg.get_payload().deleted << "\n"
-         << endl;
+  if (req.get_response().get_payload().retval != 0) {
+    cerr << "Failed to connect to VPP API" << endl;
+    exit(1);
   }
 
-  return (VAPI_OK);
-}
-
-/* DisplayIfaceEvent - This must run inside a thread */
-void VapiConnector::DisplayIfaceEvent() {
-  if_event ev(con, notify);
-  con.dispatch(ev);
-}
-
-//For testing purpose only
-/*
-int main (int argc, char **argv)
-{
-  u8 **patterns = 0;
-  string metric{"/if"};
-  char socket_name[] = STAT_SEGMENT_SOCKET_FILE;
-  int rc;
-
-  rc = stat_segment_connect(socket_name);
-  if (rc < 0) {
-  cerr << "can not connect to VPP STAT unix socket" << endl;
-  exit(1);
+  /* Thread Loop collecting in charge of updating ifMap */
+  Functor functor(this);
+  if_event ev(con, functor);
+  GetInterfaceDetails(); //Get Map at the beginning
+  while (1) {
+    con.dispatch(ev);
+    if (needUpdate)
+      GetInterfaceDetails();
   }
-  cout << "Connected to STAT socket" << endl;
-
-  patterns = CreatePatterns(metric);
-  if (!patterns)
-  return -ENOMEM;
-  DisplayPatterns(patterns);
-  FreePatterns(patterns);
-
-  // VPP API functions
-  vapi::Connection con;
-  Connect(con);
-  GetInterfaceDetails(con);
-  RegisterIfaceEvent(con);
-  DisplayIfaceEvent(con);
-  cout << "start sleeping" << endl;
-  Disconnect(con);
-
-  stat_segment_disconnect();
-  cout << "Disconnect STAT socket" << endl;
-
-  return 0;
-} */
+}

@@ -4,13 +4,14 @@
 #include <memory>
 #include <chrono>
 #include <thread>
+#include <string>
 
 #include <grpc/grpc.h>
 #include <grpcpp/server.h>
 #include <grpcpp/server_builder.h>
 
 #include "../proto/gnmi.grpc.pb.h"
-#include "gnmi_encode.h"
+#include "gnmi_handle_request.h"
 
 using namespace grpc;
 using namespace gnmi;
@@ -18,11 +19,72 @@ using namespace std;
 using namespace chrono;
 using google::protobuf::RepeatedPtrField;
 
+/* GnmiToUnixPath - Convert a GNMI Path to UNIX Path
+ * @param path the Gnmi Path
+ */
+string GnmiToUnixPath(Path path)
+{
+  string uxpath;
+
+  for (int i=0; i < path.elem_size(); i++) {
+    uxpath += "/";
+    uxpath += path.elem(i).name();
+  }
+
+  return uxpath;
+}
+
+/**
+ * BuildNotification - build a Notification message to answer a SubscribeRequest.
+ * @param request the SubscriptionList from SubscribeRequest to answer to.
+ * @param response the SubscribeResponse that is constructed by this function.
+ */
+void RequestHandler::BuildNotification(
+    const SubscriptionList& request, SubscribeResponse& response)
+{
+  Notification *notification = response.mutable_update();
+  RepeatedPtrField<Update>* updateList = notification->mutable_update();
+  milliseconds ts;
+
+  /* Get time since epoch in milliseconds */
+  ts = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
+  notification->set_timestamp(ts.count());
+
+  /* Notification message prefix based on SubscriptionList prefix */
+  if (request.has_prefix()) {
+    Path* prefix = notification->mutable_prefix();
+    prefix->set_target(request.prefix().target());
+    // set name of measurement
+    prefix->mutable_elem()->Add()->set_name("measurement1");
+  }
+
+  // Defined refer to a long Path by a shorter one: alias
+  if (request.use_aliases())
+    cerr << "Unsupported usage of aliases" << endl;
+
+  /* TODO check if only updates should be sent
+   * Require to implement a caching system to access last data sent. */
+  if (request.updates_only())
+    cerr << "Unsupported usage of Updates, every paths will be sent"  << endl;
+
+  /* Fill Update RepeatedPtrField in Notification message
+   * Update field contains only data elements that have changed values. */
+  for (int i = 0; i < request.subscription_size(); i++) {
+    Subscription sub = request.subscription(i);
+
+    // Fetch all found counters value for a requested path
+    cout << "Requested: " + GnmiToUnixPath(sub.path()) << endl;
+    statc.FillCounters(updateList, GnmiToUnixPath(sub.path()));
+  }
+
+  notification->set_atomic(false);
+}
+
 /**
  * Handles SubscribeRequest messages with STREAM subscription mode by
  * periodically sending updates to the client.
  */
-Status handleStream(
+Status RequestHandler::handleStream(
     ServerContext* context, SubscribeRequest request,
     ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
 {
@@ -108,7 +170,7 @@ Status handleStream(
  * Handles SubscribeRequest messages with ONCE subscription mode by updating
  * all the Subscriptions once, sending a SYNC message, then closing the RPC.
  */
-Status handleOnce(
+Status RequestHandler::handleOnce(
     ServerContext* context, SubscribeRequest request,
     ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
 {
@@ -134,7 +196,7 @@ Status handleOnce(
  * Handles SubscribeRequest messages with POLL subscription mode by updating
  * all the Subscriptions each time a Poll request in received.
  */
-Status handlePoll(
+Status RequestHandler::handlePoll(
     ServerContext* context, SubscribeRequest request,
     ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
 {
@@ -170,7 +232,7 @@ Status handlePoll(
  * If it does not have the "subscribe" field set, the RPC MUST be cancelled.
  * Ref: 3.5.1.1
  */
-Status handleSubscribeRequest(ServerContext* context,
+Status RequestHandler::handleSubscribeRequest(ServerContext* context,
     ServerReaderWriter<SubscribeResponse, SubscribeRequest>* stream)
 {
   SubscribeRequest request;
