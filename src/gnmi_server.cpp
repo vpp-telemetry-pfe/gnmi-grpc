@@ -61,6 +61,9 @@ void RunServer(ServerSecurityContext *cxt)
   std::string server_address("0.0.0.0:50051");
   GNMIServer service;
   ServerBuilder builder;
+  VapiConnector vapic;
+
+  std::thread collector (&VapiConnector::RegisterIfaceEvent, &vapic);
 
   builder.AddListeningPort(server_address, cxt->GetCredentials());
   builder.RegisterService(&service);

@@ -3,6 +3,8 @@
 #include "../proto/gnmi.grpc.pb.h"
 #include "gnmi_stat.h"
 
+#include <thread>
+
 using namespace grpc;
 using namespace gnmi;
 

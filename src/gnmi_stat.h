@@ -30,11 +30,26 @@ class VapiConnector {
     VapiConnector();
     ~VapiConnector();
 
-    void GetInterfaceDetails();
     void RegisterIfaceEvent();
-    void DisplayIfaceEvent();
+    void GetInterfaceDetails();
+    vapi_error_e notify(if_event& ev);
 
   private:
     Connection con;
-    std::map <u32, std::string> ifMap; //Map of sw_if_index, interface_name
+    bool needUpdate = false;
+    //Map of sw_if_index, interface_name
+    static std::map <u32, std::string> ifMap;
+};
+
+/* Required to use notify as a non-static callback */
+class Functor {
+  public:
+    Functor(VapiConnector* instance) : instance(instance) {}
+    vapi_error_e operator()(if_event& ev)
+    {
+      return instance->notify(ev);
+    }
+
+  private:
+    VapiConnector *instance;
 };

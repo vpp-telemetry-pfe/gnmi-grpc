@@ -185,9 +185,13 @@ VapiConnector::~VapiConnector() {
   con.disconnect();
 }
 
-/* GetInterfaceDetails - RPC client interacting directly with VPP binary API to
- * collect interfaces names to send in telemetry messages. */
-void VapiConnector::GetInterfaceDetails() {
+std::map <u32, std::string> VapiConnector::ifMap;
+
+/* GetInterfaceDetails - Perform a dump information to fill map between
+ * interfaces index and interfaces name.
+ */
+void VapiConnector::GetInterfaceDetails()
+{
   vapi_error_e rv;
 
   //Dump: requ=vapi_msg_sw_interface_dump; resp=vapi_msg_sw_interface_details
@@ -199,11 +203,20 @@ void VapiConnector::GetInterfaceDetails() {
 
   con.wait_for_response(req);
   for (auto& ifMsg : req.get_result_set()) {
-    cout << "sw_if_index: "    << ifMsg.get_payload().sw_if_index << "\n"
-         << "interface_name: " << ifMsg.get_payload().interface_name << "\n"
-         << "MAC address: "    << ifMsg.get_payload().l2_address
-         << endl;
+    u32 index = ifMsg.get_payload().sw_if_index;
+    string name ((char *)ifMsg.get_payload().interface_name);
+    ifMap.insert(pair<u32, string>(index, name));
+    cout << index << " " << name << endl;
   }
+  needUpdate = false;
+}
+
+/* Callback for Sw_interface_event executed when event is received */
+vapi_error_e VapiConnector::notify(if_event& ev)
+{
+  ev.get_result_set().free_all_responses(); //delete all events
+  needUpdate = true; // after dispatch ends, it will launch dump
+  return (VAPI_OK);
 }
 
 /* RegisterIfaceEvent - Ask for interface events using Want_interface_event
@@ -221,34 +234,24 @@ void VapiConnector::RegisterIfaceEvent() {
   req.get_request().get_payload().enable_disable = 1;
 
   rv = req.execute(); // send request
-  if (rv != VAPI_OK)
+  if (rv != VAPI_OK) {
     cerr << "request error" << endl;
+    exit(rv);
+  }
 
   con.wait_for_response(req);
 
-  cout << "retvalue: " << req.get_response().get_payload().retval << endl;
-}
-
-/* Callback for Sw_interface_event */
-vapi_error_e notify(if_event& ev) {
-  cout << "Reeeeeeeeeeeeeeeeeeceeeeeeeeeeeeeeeived" << endl;
-
-  for (auto& ifMsg : ev.get_result_set()) {
-    cout << "id: "            << ifMsg.get_payload()._vl_msg_id << "\n"
-         << "sw_if_index: "   << ifMsg.get_payload().sw_if_index << "\n"
-         << "admin up/down: " << ifMsg.get_payload().admin_up_down << "\n"
-         << "link up/down: "  << ifMsg.get_payload().link_up_down << "\n"
-         << "deleted: "       << ifMsg.get_payload().deleted << "\n"
-         << endl;
+  if (req.get_response().get_payload().retval != 0) {
+    cerr << "Failed to connect to VPP API" << endl;
+    exit(1);
   }
-
-  return (VAPI_OK);
-}
-
-/* DisplayIfaceEvent - This must run inside a thread */
-void VapiConnector::DisplayIfaceEvent() {
-  if_event ev(con, notify);
-  con.dispatch(ev);
+  Functor functor(this);
+  if_event ev(con, functor);
+  while (1) {
+    con.dispatch(ev);
+    if (needUpdate)
+      GetInterfaceDetails();
+  }
 }
 
 //For testing purpose only
