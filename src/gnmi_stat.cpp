@@ -218,6 +218,8 @@ void VapiConnector::GetInterfaceDetails()
   for (auto& ifMsg : req.get_result_set()) {
     u32 index = ifMsg.get_payload().sw_if_index;
     string name ((char *)ifMsg.get_payload().interface_name);
+    //Change '/' in '_' not to mistake with path delimiter
+    std::replace(name.begin(), name.end(), '/', '_');
     ifMap.insert(pair<u32, string>(index, name));
   }
   needUpdate = false;
