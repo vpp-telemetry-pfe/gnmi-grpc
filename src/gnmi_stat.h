@@ -12,6 +12,9 @@ using google::protobuf::RepeatedPtrField;
 using gnmi::Update;
 using vapi::Connection;
 
+class StatConnector;
+class VapiConnector;
+
 class StatConnector
 {
   public:
@@ -19,6 +22,8 @@ class StatConnector
     ~StatConnector();
 
     void FillCounters(RepeatedPtrField<Update> *list, std::string metric);
+
+  friend VapiConnector;
 };
 
 //New type for interface events
@@ -39,6 +44,8 @@ class VapiConnector {
     bool needUpdate = false;
     //Map of sw_if_index, interface_name
     static std::map <u32, std::string> ifMap;
+
+  friend StatConnector;
 };
 
 /* Required to use notify as a non-static callback */

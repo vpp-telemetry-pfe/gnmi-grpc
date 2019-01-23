@@ -78,7 +78,22 @@ void freePatterns(u8 **patterns)
   stat_segment_vec_free(patterns);
 }
 
-/** FillCounter - Fill val with counter value collected with STAT API
+/* addIntCounter - Add a new Update in Notification answer with uint64 value
+ * @param list Update List of Notification answer
+ * @param path Unix Path of the counter
+ * @param value counter value on 64 bits
+ */
+static inline void
+addIntCounter(RepeatedPtrField<Update> *list, string path, uint64_t value)
+{
+    Update* update = list->Add();
+
+    UnixToGnmiPath(path, update->mutable_path());
+    update->mutable_val()->set_int_val(value);
+    update->set_duplicates(0);
+}
+
+/** FillCounters - Fill val with counter value collected with STAT API
  * @param val counter value answered to gNMI client
  * @param patterns VPP vector containing UNIX path of stats counter.
  */
@@ -100,42 +115,40 @@ void StatConnector::FillCounters(RepeatedPtrField<Update> *list, string metric)
 
   // Iterate over all subdirectories of requested path
   for (int i = 0; i < stat_segment_vec_len(r); i++) {
-    Update* update = list->Add();
-    // Answer with found path instead of requested path
-    UnixToGnmiPath(r[i].name, update->mutable_path());
-    TypedValue* val = update->mutable_val();
-    update->set_duplicates(0);
-
     switch (r[i].type) {
       case STAT_DIR_TYPE_COUNTER_VECTOR_SIMPLE:
         {
-          string tmp;
           int k = 0, j = 0;
           for (; k < stat_segment_vec_len(r[i].simple_counter_vec); k++)
-            for (; j < stat_segment_vec_len(r[i].simple_counter_vec[k]); j++)
-              tmp += to_string(r[i].simple_counter_vec[k][j]);
-          val->set_string_val(tmp);
+            for (; j < stat_segment_vec_len(r[i].simple_counter_vec[k]); j++) {
+              //path = counter + ifacename + thread num
+              string path (r[i].name);
+              path += '/' + VapiConnector::ifMap[j] + "/T" + to_string(k);
+              addIntCounter(list, path, r[i].simple_counter_vec[k][j]);
+            }
           break;
         }
       case STAT_DIR_TYPE_COUNTER_VECTOR_COMBINED:
         {
-          string tmp;
           int k = 0, j = 0;
           for (; k < stat_segment_vec_len(r[i].combined_counter_vec); k++)
             for (; j < stat_segment_vec_len(r[i].combined_counter_vec[k]); j++)
             {
-              tmp += to_string(r[i].combined_counter_vec[k][j].packets);
-              tmp.append(" ");
-              tmp += to_string(r[i].combined_counter_vec[k][j].bytes);
+              //path = counter + ifacename + thread num
+              string path (r[i].name);
+              path += '/' + VapiConnector::ifMap[j] + "/T" + to_string(k);
+              addIntCounter(list, path + "/packets",
+                  r[i].combined_counter_vec[k][j].packets);
+              addIntCounter(list, path + "/bytes",
+                  r[i].combined_counter_vec[k][j].bytes);
             }
-          val->set_string_val(tmp);
           break;
         }
       case STAT_DIR_TYPE_ERROR_INDEX:
-        val->set_int_val(r[i].error_value);
+        addIntCounter(list, r[i].name, r[i].error_value);
         break;
       case STAT_DIR_TYPE_SCALAR_INDEX:
-        val->set_int_val(r[i].scalar_value);
+        addIntCounter(list, r[i].name, r[i].scalar_value);
         break;
       default:
         cerr << "Unknown value" << endl;
@@ -206,7 +219,6 @@ void VapiConnector::GetInterfaceDetails()
     u32 index = ifMsg.get_payload().sw_if_index;
     string name ((char *)ifMsg.get_payload().interface_name);
     ifMap.insert(pair<u32, string>(index, name));
-    cout << index << " " << name << endl;
   }
   needUpdate = false;
 }
@@ -220,15 +232,15 @@ vapi_error_e VapiConnector::notify(if_event& ev)
 }
 
 /* RegisterIfaceEvent - Ask for interface events using Want_interface_event
- * messages. Interface events are sent when an interface is created but not
- * when deleted. */
+ * messages sending vapi_msg_want_interface_events msg and receiving
+ * vapi_msg_want_interface_events_reply. Then, thread loop collect events.
+ * Interface events are sent for interface creation but not deletion.
+ */
 void VapiConnector::RegisterIfaceEvent() {
   vapi_error_e rv;
 
-  /* Event registering: req:vapi_msg_want_interface_events;
-   * resp: vapi_msg_want_interface_events_reply */
+  /* Register for interface events */
   vapi::Want_interface_events req(con);
-
   // Enable events and fill PID request field
   req.get_request().get_payload().pid = getpid();
   req.get_request().get_payload().enable_disable = 1;
@@ -245,8 +257,11 @@ void VapiConnector::RegisterIfaceEvent() {
     cerr << "Failed to connect to VPP API" << endl;
     exit(1);
   }
+
+  /* Thread Loop collecting in charge of updating ifMap */
   Functor functor(this);
   if_event ev(con, functor);
+  GetInterfaceDetails(); //Get Map at the beginning
   while (1) {
     con.dispatch(ev);
     if (needUpdate)
