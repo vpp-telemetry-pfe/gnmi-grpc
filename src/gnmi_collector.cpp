@@ -11,7 +11,7 @@ extern "C" {
 #include <vpp-api/client/stat_client.h>
 }
 
-#include "gnmi_stat.h"
+#include "gnmi_collector.h"
 
 using namespace std;
 using namespace gnmi;

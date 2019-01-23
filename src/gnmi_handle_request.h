@@ -1,7 +1,7 @@
 /*  vim:set softtabstop=2 shiftwidth=2 tabstop=2 expandtab: */
 #include <grpc/grpc.h>
 #include "../proto/gnmi.grpc.pb.h"
-#include "gnmi_stat.h"
+#include "gnmi_collector.h"
 
 #include <thread>
 
