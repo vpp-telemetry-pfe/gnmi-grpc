@@ -44,10 +44,10 @@ void RequestHandler::BuildNotification(
 {
   Notification *notification = response.mutable_update();
   RepeatedPtrField<Update>* updateList = notification->mutable_update();
-  milliseconds ts;
+  nanoseconds ts;
 
   /* Get time since epoch in milliseconds */
-  ts = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
+  ts = duration_cast<nanoseconds>(system_clock::now().time_since_epoch());
   notification->set_timestamp(ts.count());
 
   /* Notification message prefix based on SubscriptionList prefix */
@@ -73,7 +73,6 @@ void RequestHandler::BuildNotification(
     Subscription sub = request.subscription(i);
 
     // Fetch all found counters value for a requested path
-    cout << "Requested: " + GnmiToUnixPath(sub.path()) << endl;
     statc.FillCounters(updateList, GnmiToUnixPath(sub.path()));
   }
 
@@ -102,14 +101,12 @@ Status RequestHandler::handleStream(
   // Sends a first Notification message that updates all Subcriptions
   SubscribeResponse response;
   BuildNotification(request.subscribe(), response);
-  cout << response.DebugString() << endl;
   stream->Write(response);
   response.Clear();
 
   // Sends a SYNC message that indicates that initial synchronization
   // has completed, i.e. each Subscription has been updated once
   response.set_sync_response(true);
-  cout << response.DebugString() << endl;
   stream->Write(response);
   response.Clear();
 
@@ -152,8 +149,6 @@ Status RequestHandler::handleStream(
 
     if (updateList->subscription_size() > 0) {
       BuildNotification(updateRequest.subscribe(), response);
-      cout << "Sending sampled update" << endl;
-      cout << response.DebugString() << endl;
       stream->Write(response);
       response.Clear();
     }
@@ -177,14 +172,12 @@ Status RequestHandler::handleOnce(
   // Sends a Notification message that updates all Subcriptions once
   SubscribeResponse response;
   BuildNotification(request.subscribe(), response);
-  cout << response.DebugString() << endl;
   stream->Write(response);
   response.Clear();
 
   // Sends a message that indicates that initial synchronization
   // has completed, i.e. each Subscription has been updated once
   response.set_sync_response(true);
-  cout << response.DebugString() << endl;
   stream->Write(response);
   response.Clear();
 
@@ -208,7 +201,6 @@ Status RequestHandler::handlePoll(
           // Sends a Notification message that updates all Subcriptions once
           SubscribeResponse response;
           BuildNotification(subscription.subscribe(), response);
-          cout << response.DebugString() << endl;
           stream->Write(response);
           response.Clear();
           break;
