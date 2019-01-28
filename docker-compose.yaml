@@ -3,19 +3,20 @@ services:
   #Data visualizer
   chronograf:
     image: chronograf:alpine
-    depends_on:
-      - kapacitor
-    command: --influxdb-url=http://influxdb:8086 --kapacitor-url=http://kapacitor:9092
+    #depends_on:
+    #  - kapacitor
+    #command: --influxdb-url=http://influxdb:8086 --kapacitor-url=http://kapacitor:9092
+    command: --influxdb-url=http://influxdb:8086
     ports: ["8888:8888"]
 
-  kapacitor:
-    image: kapacitor:alpine
-    depends_on:
-      - influxdb
-    environment:
-      - KAPACITOR_HOSTNAME=kapacitor
-      - KAPACITOR_INFLUXDB_0_URLS_0=http://influxdb:8086
-    ports: ["9093:9092"]
+  #kapacitor:
+  #  image: kapacitor:alpine
+  #  depends_on:
+  #    - influxdb
+  #  environment:
+  #    - KAPACITOR_HOSTNAME=kapacitor
+  #    - KAPACITOR_INFLUXDB_0_URLS_0=http://influxdb:8086
+  #  ports: ["9093:9092"]
 
   #Data store
   influxdb:
@@ -26,55 +27,51 @@ services:
       - INFLUXDB_ADMIN_PASSWORD=admin
 
   #pipeline data collector
-  #pipeline-gnmi:
-  #  image: yohanpipereau/pipeline-gnmi
-  #  depends_on:
-  #    - vpp1
-  #  environment:
-  #    #[gnmi] section
-  #    - PIPELINE_gnmi_stage=xport_input
-  #    - PIPELINE_gnmi_type=gnmi
-  #    - PIPELINE_gnmi_server=172.22.12.100:50051
-  #    - PIPELINE_gnmi_path1=/if/rx@1
-  #    - PIPELINE_gnmi_tls=false
-  #    - PIPELINE_gnmi_username=cisco
-  #    - PIPELINE_gnmi__password=cisco
-  #    #[metrics] section to send to influx
-  #    - PIPELINE_metrics_stage=xport_output
-  #    - PIPELINE_metrics_type=metrics
-  #    - PIPELINE_metrics_output=influx
-  #    - PIPELINE_metrics_influx=http://influxdb:8086
-  #      #It is not used but need to be passed:
-  #    - PIPELINE_metrics_file=/etc/pipeline/metrics.json
-  #    - PIPELINE_metrics_database=telemetry
-  #    - PIPELINE_metrics_username=admin
-  #    - PIPELINE_metrics__password=admin
-  #    - PIPELINE_metrics_dump=influxdump.txt #data sent to influx
-  #    #[inspector] section to dump locally
-  #    - PIPELINE_inspector_stage=xport_output
-  #    - PIPELINE_inspector_type=tap
-  #    - PIPELINE_inspector_file=rawdump.txt
-  #  networks:
-  #    default:
+  pipeline-gnmi:
+    image: yohanpipereau/pipeline-gnmi
+    depends_on:
+      - vpp1
+    environment:
+      #[gnmi] section
+      - PIPELINE_gnmi_stage=xport_input
+      - PIPELINE_gnmi_type=gnmi
+      - PIPELINE_gnmi_server=172.100.12.100:50051
+      - PIPELINE_gnmi_path1=/if/rx@1
+      - PIPELINE_gnmi_tls=false
+      - PIPELINE_gnmi_username=cisco
+      - PIPELINE_gnmi__password=cisco
+      #[metrics] section to send to influx
+      - PIPELINE_metrics_stage=xport_output
+      - PIPELINE_metrics_type=metrics
+      - PIPELINE_metrics_output=influx
+      - PIPELINE_metrics_influx=http://influxdb:8086
+        #It is not used but need to be passed:
+      - PIPELINE_metrics_file=/etc/pipeline/metrics.json
+      - PIPELINE_metrics_database=telemetry
+      - PIPELINE_metrics_username=admin
+      - PIPELINE_metrics__password=admin
+      - PIPELINE_metrics_dump=influxdump.txt #data sent to influx
+      #[inspector] section to dump locally
+      - PIPELINE_inspector_stage=xport_output
+      - PIPELINE_inspector_type=tap
+      - PIPELINE_inspector_file=rawdump.txt
+    networks:
+      default:
 
-  #    telemetry:
-  #      ipv4_address: 172.22.12.101
-
-  #telegraf data collector
-  telegraf:
-    image: yohanpipereau/telegraf-gnmi #not online
-    ports: ["8094:8094"]
+      telemetry:
+        ipv4_address: 172.100.12.101
 
   #VPP instance working with gNMI server
   vpp1:
     build: .
     command: -f
+    privileged: true
     ports: ["50051:50051"] #gRPC server port
     networks:
       default:
 
       telemetry:
-        ipv4_address: 172.22.12.100
+        ipv4_address: 172.100.12.100
 
 
 networks:
@@ -83,4 +80,4 @@ networks:
   telemetry:
     ipam:
       config:
-        - subnet: 172.22.12.0/24
+        - subnet: 172.100.12.0/24

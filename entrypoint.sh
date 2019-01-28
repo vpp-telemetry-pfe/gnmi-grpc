@@ -3,7 +3,14 @@
 set -e
 
 curl -s https://packagecloud.io/install/repositories/fdio/master/script.deb.sh | bash
-apt-get update && apt-get install -y vpp vpp-dev
+apt-get update && apt-get install -y vpp=19.04-rc0~27-ge67c1d82~b1910 \
+  vpp-dev=19.04-rc0~27-ge67c1d82~b1910 \
+  vpp-lib=19.04-rc0~27-ge67c1d82~b1910
+
+#Run vpp
+mkdir /run/vpp
+vpp -c /etc/vpp/startup.conf &
+while [ ! -S "/run/vpp/stats.sock" -o ! -S "/run/vpp-api.sock" ]; do sleep 1; done
 
 make
 

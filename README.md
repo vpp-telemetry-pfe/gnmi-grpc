@@ -8,7 +8,8 @@ A typical setup would make gNMI server work with a data collector supporting gNM
 
 The data collector make subscription request to gnmi server to receive updates on a regular interval about metrics.
 
-This repo notably upgrades the [vpp_prometheus_export HTTP1.1 server](https://github.com/FDio/vpp/blob/3620e61dece82781f0073a2908dfcb24724712a9/src/vpp/app/vpp_prometheus_export.c).
+Our server creates telemetry messages by filling timestamp field at nanosecond precision. Thus our system has a max time limit which expires 292 years after epoch (1970).
+`9223372036854775806/10^9/60/60/24/365=292.47120867753601617199`
 
 ## Requirements
 
@@ -56,11 +57,22 @@ We provided a basic docker scenario as a demonstration. It uses:
 
 ```
 make clean
+docker-compose build #build vpp1
 docker-compose up
 ```
 
 See chronograf : [http://localhost:8888](http://localhost:8888)
 
+Use Influx client to print timestamp in RFC3339:
+
+```
+./influx --precision rfc3339
+> connect localhost:8086
+> show databases
+```
+
 ## Further notes
 
-gRPC has switched from grpc++ to grpcpp directory in header file. Thus, you need a recent version of gRPC.
+* gRPC has switched from grpc++ to grpcpp directory in header file. Thus, you need a recent version of gRPC.
+
+* This repo notably upgrades the [vpp_prometheus_export HTTP1.1 server](https://github.com/FDio/vpp/blob/3620e61dece82781f0073a2908dfcb24724712a9/src/vpp/app/vpp_prometheus_export.c).
