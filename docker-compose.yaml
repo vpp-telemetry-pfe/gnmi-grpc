@@ -3,20 +3,8 @@ services:
   #Data visualizer
   chronograf:
     image: chronograf:alpine
-    #depends_on:
-    #  - kapacitor
-    #command: --influxdb-url=http://influxdb:8086 --kapacitor-url=http://kapacitor:9092
     command: --influxdb-url=http://influxdb:8086
     ports: ["8888:8888"]
-
-  #kapacitor:
-  #  image: kapacitor:alpine
-  #  depends_on:
-  #    - influxdb
-  #  environment:
-  #    - KAPACITOR_HOSTNAME=kapacitor
-  #    - KAPACITOR_INFLUXDB_0_URLS_0=http://influxdb:8086
-  #  ports: ["9093:9092"]
 
   #Data store
   influxdb:
@@ -35,7 +23,7 @@ services:
       #[gnmi] section
       - PIPELINE_gnmi_stage=xport_input
       - PIPELINE_gnmi_type=gnmi
-      - PIPELINE_gnmi_server=172.100.12.100:50051
+      - PIPELINE_gnmi_server=172.100.10.100:50051
       - PIPELINE_gnmi_path1=/if/rx@1
       - PIPELINE_gnmi_tls=false
       - PIPELINE_gnmi_username=cisco
@@ -59,25 +47,51 @@ services:
       default:
 
       telemetry:
-        ipv4_address: 172.100.12.101
+        ipv4_address: 172.100.10.100
 
   #VPP instance working with gNMI server
   vpp1:
     image: yohanpipereau/vpp-gnmi
     command: -f
     privileged: true
-    ports: ["50051:50051"] #gRPC server port
+    ports: ["50051:50051", "8301:2831"] #gRPC server port
     networks:
       default:
 
       telemetry:
-        ipv4_address: 172.100.12.100
+        ipv4_address: 172.100.10.101
+
+      node1_node2:
+        ipv4_address: 172.100.12.101
+
+  vpp2:
+    image: yohanpipereau/vpp-gnmi
+    command: -f
+    privileged: true
+    ports: ["50052:50051", "8302:2831"] #gRPC server port
+    networks:
+      default:
+
+      telemetry:
+        ipv4_address: 172.100.10.102
+
+      node1_node2:
+        ipv4_address: 172.100.12.102
+
+  ansible:
+    depends_on: ["vpp1", "vpp2"]
+    build: ansible
 
 
 networks:
   default:
 
   telemetry:
+    ipam:
+      config:
+        - subnet: 172.100.10.0/24
+
+  node1_node2:
     ipam:
       config:
         - subnet: 172.100.12.0/24
