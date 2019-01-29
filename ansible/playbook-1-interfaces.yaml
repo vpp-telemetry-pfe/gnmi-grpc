@@ -1,0 +1,93 @@
+- hosts: localhost
+  gather_facts: no
+  connection: local
+  tasks:
+  - name: Configure Node 1 Interfaces
+    netconf_config:
+      host: vpp1
+      port: 2831
+      hostkey_verify: no
+      username: admin
+      password: admin
+      xml: |
+        <config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0">
+          <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+            <interface>
+              <name>tapcli-0</name>
+              <type xmlns:v3po="urn:opendaylight:params:xml:ns:yang:v3po">v3po:tap</type>
+
+              <tap xmlns="urn:opendaylight:params:xml:ns:yang:v3po">
+                <tap-name>vpp</tap-name>
+                <mac>00:00:00:00:10:10</mac>
+              </tap>
+
+              <ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+                <address>
+                  <ip>172.100.10.10</ip>
+                  <prefix-length>24</prefix-length>
+                </address>
+              </ipv4>
+            </interface>
+            <interface>
+              <name>host-eth0</name>
+              <type xmlns:v3po="urn:opendaylight:params:xml:ns:yang:v3po">v3po:af-packet</type>
+
+              <af-packet xmlns="urn:opendaylight:params:xml:ns:yang:v3po">
+                <host-interface-name>eth0</host-interface-name>
+                <mac>00:00:00:00:12:10</mac>
+              </af-packet>
+
+              <ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+                <address>
+                  <ip>172.100.12.10</ip>
+                  <prefix-length>24</prefix-length>
+                </address>
+              </ipv4>
+            </interface>
+          </interfaces>
+        </config>
+
+  - name: Configure Node 2 Interfaces
+    netconf_config:
+      host: vpp2
+      port: 2831
+      hostkey_verify: no
+      username: admin
+      password: admin
+      xml: |
+        <config xmlns:xc="urn:ietf:params:xml:ns:netconf:base:1.0">
+          <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+            <interface>
+              <name>tapcli-0</name>
+              <type xmlns:v3po="urn:opendaylight:params:xml:ns:yang:v3po">v3po:tap</type>
+
+              <tap xmlns="urn:opendaylight:params:xml:ns:yang:v3po">
+                <tap-name>vpp</tap-name>
+                <mac>00:00:00:00:10:20</mac>
+              </tap>
+
+              <ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+                <address>
+                  <ip>172.100.10.20</ip>
+                  <prefix-length>24</prefix-length>
+                </address>
+              </ipv4>
+            </interface>
+            <interface>
+              <name>host-eth0</name>
+              <type xmlns:v3po="urn:opendaylight:params:xml:ns:yang:v3po">v3po:af-packet</type>
+
+              <af-packet xmlns="urn:opendaylight:params:xml:ns:yang:v3po">
+                <host-interface-name>eth0</host-interface-name>
+                <mac>00:00:00:00:12:20</mac>
+              </af-packet>
+
+              <ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+                <address>
+                  <ip>172.100.12.20</ip>
+                  <prefix-length>24</prefix-length>
+                </address>
+              </ipv4>
+            </interface>
+          <interfaces>
+        </config>
