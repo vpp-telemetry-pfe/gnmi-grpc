@@ -63,7 +63,7 @@ services:
 
   #VPP instance working with gNMI server
   vpp1:
-    build: .
+    image: yohanpipereau/vpp-gnmi
     command: -f
     privileged: true
     ports: ["50051:50051"] #gRPC server port
