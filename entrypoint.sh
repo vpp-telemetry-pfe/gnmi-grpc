@@ -3,7 +3,7 @@
 set -e
 
 #Run vpp
-mkdir /run/vpp
+mkdir -p /run/vpp
 vpp -c /etc/vpp/startup.conf &
 while [ ! -S "/run/vpp/stats.sock" -o ! -S "/run/vpp-api.sock" ]; do sleep 1; done
 
