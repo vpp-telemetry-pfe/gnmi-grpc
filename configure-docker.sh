@@ -1,7 +1,7 @@
 #!/bin/bash
 
 conf_vpp1() {
-  sudo docker-compose exec vpp1 curl -k -u admin:admin \
+  docker-compose exec vpp1 curl -k -u admin:admin \
       -X POST -H "Content-Type: application/yang.data+json" \
       -d '{"interface": [{
         "name": "host-eth0",
@@ -12,7 +12,7 @@ conf_vpp1() {
 }
 
 conf_vpp2() {
-  sudo docker-compose exec vpp2 curl -k -u admin:admin \
+  docker-compose exec vpp2 curl -k -u admin:admin \
       -X POST -H "Content-Type: application/yang.data+json" \
       -d '{"interface": [{
         "name": "host-eth0",
@@ -35,4 +35,4 @@ while [ "$?" = "7" ]; do
 done
 
 printf "\n\nvpp2 pings vpp1 at fd::10\n"
-sudo docker-compose exec vpp2 vppctl ping fd12::10
+docker-compose exec vpp2 vppctl ping fd12::10
