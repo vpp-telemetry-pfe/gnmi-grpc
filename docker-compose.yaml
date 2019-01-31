@@ -23,7 +23,7 @@ services:
       #[gnmi] section
       - PIPELINE_gnmi_stage=xport_input
       - PIPELINE_gnmi_type=gnmi
-      - PIPELINE_gnmi_server=172.100.10.100:50051
+      - PIPELINE_gnmi_server=172.100.10.101:50051
       - PIPELINE_gnmi_path1=/if/rx@1
       - PIPELINE_gnmi_tls=false
       - PIPELINE_gnmi_username=cisco
@@ -54,7 +54,7 @@ services:
     image: yohanpipereau/vpp-gnmi
     command: -f
     privileged: true
-    ports: ["50051:50051", "8301:2831"] #gRPC server port
+    ports: ["50051:50051", "8301:2831", "4431:8445"] #gRPC server port
     networks:
       default:
 
@@ -68,7 +68,7 @@ services:
     image: yohanpipereau/vpp-gnmi
     command: -f
     privileged: true
-    ports: ["50052:50051", "8302:2831"] #gRPC server port
+    ports: ["50052:50051", "8302:2831", "4432:8445"] #gRPC server port
     networks:
       default:
 
@@ -77,11 +77,6 @@ services:
 
       node1_node2:
         ipv4_address: 172.100.12.102
-
-  ansible:
-    depends_on: ["vpp1", "vpp2"]
-    build: ansible
-
 
 networks:
   default:

@@ -2,6 +2,8 @@
 
 set -e
 
+mknod /dev/vhost-net c 10 238
+
 #Run vpp
 mkdir -p /run/vpp
 vpp -c /etc/vpp/startup.conf &
