@@ -22,7 +22,8 @@ conf_vpp2() {
       }]}' https://localhost:8445/restconf/config/ietf-interfaces:interfaces
 }
 
-printf "Configure VPP1-eth0: mac=00:00:00:00:00:12:10 & ip=fd12::10"
+printf "Wait a few seconds, it can be long\n"
+printf "Configure VPP1-eth0: mac=00:00:00:00:00:12:10 & ip=fd12::10\n"
 conf_vpp1 > /dev/null 2>&1
 while [ "$?" = "7" ]; do
   conf_vpp1 > /dev/null 2>&1
