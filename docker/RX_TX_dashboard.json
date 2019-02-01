@@ -1,0 +1,156 @@
+{
+    "cells": [
+        {
+            "axes": {
+                "x": {
+                    "base": "10",
+                    "bounds": [
+                        "",
+                        ""
+                    ],
+                    "label": "",
+                    "prefix": "",
+                    "scale": "linear",
+                    "suffix": ""
+                },
+                "y": {
+                    "base": "10",
+                    "bounds": [
+                        "",
+                        ""
+                    ],
+                    "label": "",
+                    "prefix": "",
+                    "scale": "linear",
+                    "suffix": ""
+                },
+                "y2": {
+                    "base": "10",
+                    "bounds": [
+                        "",
+                        ""
+                    ],
+                    "label": "",
+                    "prefix": "",
+                    "scale": "linear",
+                    "suffix": ""
+                }
+            },
+            "colors": [
+                {
+                    "hex": "#31C0F6",
+                    "id": "e3ae1129-32a1-47dc-8898-120d9f2267fd",
+                    "name": "Nineteen Eighty Four",
+                    "type": "scale",
+                    "value": "0"
+                },
+                {
+                    "hex": "#A500A5",
+                    "id": "e9a800e5-1358-472f-b8c7-a0dbd2147ef6",
+                    "name": "Nineteen Eighty Four",
+                    "type": "scale",
+                    "value": "0"
+                },
+                {
+                    "hex": "#FF7E27",
+                    "id": "bbcc2768-7f27-4dde-852f-38fcf6c9eab6",
+                    "name": "Nineteen Eighty Four",
+                    "type": "scale",
+                    "value": "0"
+                }
+            ],
+            "decimalPlaces": {
+                "digits": 2,
+                "isEnforced": true
+            },
+            "fieldOptions": [
+                {
+                    "displayName": "",
+                    "internalName": "time",
+                    "visible": true
+                }
+            ],
+            "h": 5,
+            "i": "573aae4b-e126-4b0a-b8b6-5e226527b438",
+            "legend": {},
+            "links": {
+                "self": "/chronograf/v1/dashboards/4/cells/573aae4b-e126-4b0a-b8b6-5e226527b438"
+            },
+            "name": "Untitled Graph",
+            "note": "",
+            "noteVisibility": "default",
+            "queries": [
+                {
+                    "query": "SELECT mean(\"/measurement1/if/tx/host-eth0/T0/packets\") AS \"mean_/measurement1/if/tx/host-eth0/T0/packets\", mean(\"/measurement1/if/rx/host-eth0/T0/packets\") AS \"mean_/measurement1/if/rx/host-eth0/T0/packets\" FROM \"telemetry\".\"autogen\".\"/measurement1\" WHERE time > :dashboardTime: GROUP BY time(:interval:) FILL(null)",
+                    "queryConfig": {
+                        "areTagsAccepted": false,
+                        "database": "telemetry",
+                        "fields": [
+                            {
+                                "alias": "mean_/measurement1/if/tx/host-eth0/T0/packets",
+                                "args": [
+                                    {
+                                        "alias": "",
+                                        "type": "field",
+                                        "value": "/measurement1/if/tx/host-eth0/T0/packets"
+                                    }
+                                ],
+                                "type": "func",
+                                "value": "mean"
+                            },
+                            {
+                                "alias": "mean_/measurement1/if/rx/host-eth0/T0/packets",
+                                "args": [
+                                    {
+                                        "alias": "",
+                                        "type": "field",
+                                        "value": "/measurement1/if/rx/host-eth0/T0/packets"
+                                    }
+                                ],
+                                "type": "func",
+                                "value": "mean"
+                            }
+                        ],
+                        "fill": "null",
+                        "groupBy": {
+                            "tags": [],
+                            "time": "auto"
+                        },
+                        "measurement": "/measurement1",
+                        "range": null,
+                        "rawText": null,
+                        "retentionPolicy": "autogen",
+                        "shifts": null,
+                        "tags": {}
+                    },
+                    "source": "",
+                    "type": "influxql"
+                }
+            ],
+            "tableOptions": {
+                "fixFirstColumn": true,
+                "sortBy": {
+                    "displayName": "",
+                    "internalName": "time",
+                    "visible": true
+                },
+                "verticalTimeAxis": true,
+                "wrapping": "truncate"
+            },
+            "timeFormat": "MM/DD/YYYY HH:mm:ss",
+            "type": "line",
+            "w": 7,
+            "x": 0,
+            "y": 0
+        }
+    ],
+    "id": 4,
+    "links": {
+        "cells": "/chronograf/v1/dashboards/4/cells",
+        "self": "/chronograf/v1/dashboards/4",
+        "templates": "/chronograf/v1/dashboards/4/templates"
+    },
+    "name": "RX TX",
+    "organization": "default",
+    "templates": []
+}

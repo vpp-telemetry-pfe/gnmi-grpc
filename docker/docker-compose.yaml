@@ -20,14 +20,22 @@ services:
     depends_on:
       - vpp1
     environment:
-      #[gnmi] section
-      - PIPELINE_gnmi_stage=xport_input
-      - PIPELINE_gnmi_type=gnmi
-      - PIPELINE_gnmi_server=172.100.10.101:50051
-      - PIPELINE_gnmi_path1=/if/rx@1
-      - PIPELINE_gnmi_tls=false
-      - PIPELINE_gnmi_username=cisco
-      - PIPELINE_gnmi__password=cisco
+      #[vpp1] section
+      - PIPELINE_vpp1_stage=xport_input
+      - PIPELINE_vpp1_type=gnmi
+      - PIPELINE_vpp1_server=172.100.10.101:50051
+      - PIPELINE_vpp1_path1=/if/rx@1
+      - PIPELINE_vpp1_tls=false
+      - PIPELINE_vpp1_username=cisco
+      - PIPELINE_vpp1__password=cisco
+      #[vpp2] section
+      - PIPELINE_vpp2_stage=xport_input
+      - PIPELINE_vpp2_type=gnmi
+      - PIPELINE_vpp2_server=172.100.10.102:50051
+      - PIPELINE_vpp2_path1=/if/tx@1
+      - PIPELINE_vpp2_tls=false
+      - PIPELINE_vpp2_username=cisco
+      - PIPELINE_vpp2__password=cisco
       #[metrics] section to send to influx
       - PIPELINE_metrics_stage=xport_output
       - PIPELINE_metrics_type=metrics
@@ -39,10 +47,6 @@ services:
       - PIPELINE_metrics_username=admin
       - PIPELINE_metrics__password=admin
       - PIPELINE_metrics_dump=influxdump.txt #data sent to influx
-      #[inspector] section to dump locally
-      - PIPELINE_inspector_stage=xport_output
-      - PIPELINE_inspector_type=tap
-      - PIPELINE_inspector_file=rawdump.txt
     networks:
       default:
 

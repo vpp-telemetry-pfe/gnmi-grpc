@@ -37,3 +37,7 @@ done
 
 printf "\n\nvpp2 pings vpp1 at fd::10\n"
 docker-compose exec vpp2 vppctl ping fd12::10
+
+printf "\n\nConfigure Cronograph dashboard\n"
+curl -i -X POST -H "Content-Type: application/json" \
+  http://localhost:8888/chronograf/v1/dashboards -d @RX_TX_dashboard.json

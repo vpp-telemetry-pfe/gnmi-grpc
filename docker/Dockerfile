@@ -1,5 +1,8 @@
 FROM yohanpipereau/grpcpp1.12.0:xenial
 
+#Our gNMI telemetry server branch
+ARG REV=gnmi
+#VPP and Honeycomb versions
 ARG VPP=19.04-rc0~b6129
 ARG HONEYCOMB=1.19.04-6318
 
@@ -10,8 +13,6 @@ ARG PKG_VPP_LIB=${BASE}/vpp-lib_${VPP}_amd64.deb/download.deb
 ARG PKG_VPP_PLUGINS=${BASE}/vpp-plugins_${VPP}_amd64.deb/download.deb
 ARG PKG_VPP_DEV=${BASE}/vpp-dev_${VPP}_amd64.deb/download.deb
 ARG PKG_HONEYCOMB=${BASE}/honeycomb_${HONEYCOMB}_all.deb/download.deb
-
-COPY . /home/app/
 
 RUN apt-get update && apt-get install -y \
     # Utils
@@ -27,7 +28,8 @@ RUN apt-get update && apt-get install -y \
 # Reduce image size
 && cd / && rm -rf /var/lib/apt/lists/* /tmp/deb \
 # compile my app
-&& cd /home/app && make -j$(nproc)
+&& git clone -b "$REV" --single-branch --depth 1 https://github.com/vpp-telemetry-pfe/gnmi-grpc.git /home/app/gnmi-grpc \
+&& cd /home/app/gnmi-grpc && make -j$(nproc)
 
 WORKDIR /home/app/
 ENTRYPOINT ["./entrypoint.sh"]
