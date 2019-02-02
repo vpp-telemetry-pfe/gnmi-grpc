@@ -48,28 +48,7 @@ Use with a data collector:
 
 ## Running the docker scenario
 
-We provided a basic docker scenario as a demonstration. It uses:
-
-* a VPP instance built on ubuntu bionic with grpcpp 1.12.0;
-* a pipeline-gnmi instance built on alpine 3.8 collecting data from gNMI server
-* a Influxdb instance to store telemetry informations received from pipeline
-* a Chronograf instance to visualize telemetry informations, use dashboard, ...
-
-```
-make clean
-docker-compose build #build vpp1
-docker-compose up
-```
-
-See chronograf : [http://localhost:8888](http://localhost:8888)
-
-Use Influx client to print timestamp in RFC3339:
-
-```
-./influx --precision rfc3339
-> connect localhost:8086
-> show databases
-```
+Instructions about the scenario is in [docker/guide.md](docker/guide.md).
 
 ## Further notes
 
